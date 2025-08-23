@@ -1,0 +1,144 @@
+{
+  "timestamp": "2025-08-23T20:37:59.149Z",
+  "summary": {
+    "total": 10,
+    "passed": 0,
+    "failed": 10,
+    "categories": {
+      "Object-Oriented": {
+        "passed": 0,
+        "failed": 1
+      },
+      "Database": {
+        "passed": 0,
+        "failed": 1
+      },
+      "Tables": {
+        "passed": 0,
+        "failed": 1
+      },
+      "Advanced": {
+        "passed": 0,
+        "failed": 1
+      },
+      "Exceptions": {
+        "passed": 0,
+        "failed": 1
+      },
+      "Modern ABAP": {
+        "passed": 0,
+        "failed": 2
+      },
+      "Control Flow": {
+        "passed": 0,
+        "failed": 2
+      },
+      "Modularization": {
+        "passed": 0,
+        "failed": 1
+      }
+    }
+  },
+  "results": [
+    {
+      "name": "1. Class with Methods (OO ABAP)",
+      "location": "abaplint/packages/morph/abap2/zcl_alint_lexer.clas.abap",
+      "category": "Object-Oriented",
+      "success": false,
+      "details": {
+        "statementCount": 19,
+        "failureReason": "Statement 3 type: MethodDef vs Unknown"
+      }
+    },
+    {
+      "name": "2. Complex SELECT with JOIN",
+      "location": "tree-sitter-abap/_corpus/select_complex.abap",
+      "category": "Database",
+      "success": false,
+      "details": {
+        "statementCount": 7,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "3. Internal Table Operations",
+      "location": "tree-sitter-abap/_corpus/table_operations.abap",
+      "category": "Tables",
+      "success": false,
+      "details": {
+        "statementCount": 20,
+        "failureReason": "Statement 1 type: DataBegin vs Unknown"
+      }
+    },
+    {
+      "name": "4. Field Symbols and Dynamic Programming",
+      "location": "tree-sitter-abap/_corpus/field_symbols.abap",
+      "category": "Advanced",
+      "success": false,
+      "details": {
+        "statementCount": 14,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "5. Exception Handling",
+      "location": "custom/exception_handling.abap",
+      "category": "Exceptions",
+      "success": false,
+      "details": {
+        "statementCount": 14,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "6. String Templates and Expressions",
+      "location": "tree-sitter-abap/_corpus/string_templates.abap",
+      "category": "Modern ABAP",
+      "success": false,
+      "details": {
+        "statementCount": 9,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "7. Nested Loops and Control Flow",
+      "location": "tree-sitter-abap/_corpus/nested_control.abap",
+      "category": "Control Flow",
+      "success": false,
+      "details": {
+        "statementCount": 21,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "8. FORM Routines with Parameters",
+      "location": "tree-sitter-abap/_corpus/form_routines.abap",
+      "category": "Modularization",
+      "success": false,
+      "details": {
+        "statementCount": 17,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "9. CASE Statement with WHEN OTHERS",
+      "location": "tree-sitter-abap/_corpus/case_statement.abap",
+      "category": "Control Flow",
+      "success": false,
+      "details": {
+        "statementCount": 23,
+        "failureReason": "Statement 1 type: Data vs Unknown"
+      }
+    },
+    {
+      "name": "10. Method Chaining and Functional Calls",
+      "location": "custom/method_chaining.abap",
+      "category": "Modern ABAP",
+      "success": false,
+      "details": {
+        "statementCount": 9,
+        "failureReason": "Statement 2 type: Move vs Unknown"
+      }
+    }
+  ]
+}
