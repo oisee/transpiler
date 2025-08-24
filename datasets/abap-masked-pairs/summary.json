@@ -1,0 +1,15 @@
+{
+  "timestamp": "2025-08-24T22:32:19.461Z",
+  "statistics": {
+    "level1": 273,
+    "level2": 171,
+    "level3": 61,
+    "level4": 0,
+    "total": 505
+  },
+  "corpus": {
+    "directory": "examples",
+    "astDirectory": "datasets/abap-ast"
+  },
+  "output": "datasets/abap-masked-pairs"
+}

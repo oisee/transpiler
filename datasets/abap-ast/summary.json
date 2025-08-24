@@ -1,0 +1,37 @@
+{
+  "timestamp": "2025-08-24T22:29:50.501Z",
+  "filesProcessed": 5,
+  "totalStatements": 700,
+  "files": [
+    {
+      "source": "examples/translations/quicksort-python-to-abap.abap",
+      "output": "datasets/abap-ast/translations-quicksort-python-to-abap.ast.json",
+      "statements": 57,
+      "types": 17
+    },
+    {
+      "source": "examples/translations/fibonacci-js-to-abap.abap",
+      "output": "datasets/abap-ast/translations-fibonacci-js-to-abap.ast.json",
+      "statements": 23,
+      "types": 11
+    },
+    {
+      "source": "examples/python/basic-functions.abap",
+      "output": "datasets/abap-ast/python-basic-functions.ast.json",
+      "statements": 249,
+      "types": 39
+    },
+    {
+      "source": "examples/javascript/basic-functions.abap",
+      "output": "datasets/abap-ast/javascript-basic-functions.ast.json",
+      "statements": 104,
+      "types": 23
+    },
+    {
+      "source": "examples/go/basic-functions.abap",
+      "output": "datasets/abap-ast/go-basic-functions.ast.json",
+      "statements": 267,
+      "types": 31
+    }
+  ]
+}

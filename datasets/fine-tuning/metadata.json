@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-08-24T22:32:33.824Z",
+  "format": "openai",
+  "splitRatio": "80:10:10",
+  "statistics": {
+    "train": 404,
+    "validation": 50,
+    "test": 51,
+    "total": 505
+  },
+  "levelDistribution": {},
+  "sourceDirectory": "datasets/abap-masked-pairs",
+  "outputDirectory": "datasets/fine-tuning"
+}
