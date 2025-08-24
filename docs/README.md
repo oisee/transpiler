@@ -23,6 +23,7 @@ This directory contains numbered articles documenting the development, implement
 
 ### API & Usage
 - **013** - [Transpiler API Usage](013_TRANSPILER_API_USAGE.md) - Complete guide for programmatic usage from JS/Go/ABAP
+- **014** - [Multi-Language SDK Integration Guide](014_MULTI_LANGUAGE_SDK_INTEGRATION_GUIDE.md) - **⭐ Scale Integration** - Python, Go, ABAP at enterprise scale
 
 ### Development Process
 - **003** - [AI Collaboration Guide](003_AI_COLLABORATION_GUIDE.md) - Parallel AI development patterns for ABAP projects
