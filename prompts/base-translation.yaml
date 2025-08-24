@@ -44,6 +44,13 @@ languages:
       - Add proper ABAP comments with double quotes
       - Prefer functional methods over procedures
       - Use exception classes over classic exceptions
+      - Map common errors to specific SAP exception classes:
+        * File operations → cx_sy_file_open_mode, cx_sy_codepage_converter_init
+        * Table access → cx_sy_itab_line_not_found, cx_sy_itab_duplicate_key
+        * Type conversions → cx_sy_conversion_error, cx_sy_move_cast_error
+        * Arithmetic → cx_sy_arithmetic_error, cx_sy_arithmetic_overflow
+        * Authorization → cx_sy_authorization_error
+        * Generic → cx_root (base class)
     
     type_mappings:
       javascript:
@@ -95,3 +102,36 @@ patterns:
       - METHODS and CLASS-METHODS
       - Constructor as CONSTRUCTOR method
       - Proper inheritance with INHERITING FROM
+
+# Validation rules for modern ABAP compliance
+validation_rules:
+  forbidden_patterns:
+    - pattern: "FORM.*USING.*CHANGING"
+      message: "Use CLASS-METHODS with RETURNING parameters instead of FORM/PERFORM"
+      replacement: "CLASS lcl_utility DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: method_name\n      IMPORTING iv_param TYPE type\n      RETURNING VALUE(rv_result) TYPE type.\nENDCLASS."
+    - pattern: "PERFORM.*USING.*CHANGING"
+      message: "Use method calls instead of PERFORM statements"
+      replacement: "DATA(result) = lcl_utility=>method_name( param )."
+    - pattern: "CONCATENATE.*INTO.*SEPARATED"
+      message: "Use string templates instead of CONCATENATE"
+      replacement: "result = |{ var1 } { var2 }|."
+    - pattern: "DATA:.*LIKE.*TABLE OF"
+      message: "Use TYPE TABLE OF instead of LIKE TABLE OF"
+      replacement: "TYPES: tt_table TYPE TABLE OF structure_type."
+
+  mandatory_patterns:
+    - "CLASS.*DEFINITION"
+    - "CLASS.*IMPLEMENTATION" 
+    - "RETURNING VALUE"
+    - "DATA\\("
+    - "VALUE #\\("
+
+  modern_abap_enforcement: |
+    Generated ABAP code MUST use modern patterns (7.40+ syntax):
+    - Local classes (CLASS lcl_*) instead of FORM/PERFORM
+    - RETURNING parameters instead of CHANGING
+    - Inline declarations with DATA( )
+    - VALUE #( ) expressions for data construction
+    - String templates |{ }| instead of CONCATENATE
+    - COND/SWITCH expressions for conditional logic
+    - FOR expressions in VALUE/REDUCE/FILTER operations

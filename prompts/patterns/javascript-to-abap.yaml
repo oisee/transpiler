@@ -276,11 +276,13 @@ modern_features:
       }
     
     abap: |
-      " ABAP doesn't have direct equivalent for iterating object keys
+      " PERFORMANCE WARNING: RTTI operations are expensive
+      " Prefer known structure fields when possible
       " Use structure components if known at compile time
       DATA(lo_descr) = cl_abap_typedescr=>describe_by_data( ls_object ).
       DATA(lo_struct) = CAST cl_abap_structdescr( lo_descr ).
       
+      " Consider caching component information for repeated calls
       LOOP AT lo_struct->components INTO DATA(ls_comp).
         ASSIGN COMPONENT ls_comp-name OF STRUCTURE ls_object TO FIELD-SYMBOL(<fs_value>).
         WRITE: / ls_comp-name, <fs_value>.
@@ -293,8 +295,16 @@ modern_features:
       });
     
     abap: |
-      " Similar to for...in pattern above
-      " Use RTTI for dynamic structure access
+      " PERFORMANCE WARNING: Similar to for...in pattern above
+      " RTTI operations should be cached when used repeatedly
+      " Alternative: Define known structure fields statically
+      DATA(lo_descr) = cl_abap_typedescr=>describe_by_data( ls_object ).
+      DATA(lo_struct) = CAST cl_abap_structdescr( lo_descr ).
+      
+      LOOP AT lo_struct->components INTO DATA(ls_comp).
+        ASSIGN COMPONENT ls_comp-name OF STRUCTURE ls_object TO FIELD-SYMBOL(<fs_value>).
+        WRITE: / |{ ls_comp-name }: { <fs_value> }|.
+      ENDLOOP.
 
 # Error handling patterns
 error_patterns:

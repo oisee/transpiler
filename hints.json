@@ -1,0 +1,54 @@
+{
+    "ZODD_000_SRV": {
+        "description": "ABAP Development Objects Service",
+        "key_entities": [
+            "Classes",
+            "Methods",
+            "Interfaces",
+            "Reports",
+            "FunctionModules",
+            "DataElements",
+            "Tables",
+            "Structures"
+        ],
+        "common_filters": {
+            "active_only": "Status eq 'A'",
+            "modern_objects": "CreatedDate gt datetime'2020-01-01T00:00:00'",
+            "local_classes": "Name like 'LCL_%'"
+        },
+        "usage_hints": [
+            "Use Classes entity to fetch ABAP class definitions",
+            "Methods entity contains implementation examples",
+            "Check naming conventions in actual system objects"
+        ]
+    },
+    "ZATS_001_SRV": {
+        "description": "ABAP Syntax Tree Service",
+        "key_entities": [
+            "ASTNodes",
+            "Statements",
+            "Expressions",
+            "TypeDefinitions",
+            "CodePatterns"
+        ],
+        "common_filters": {
+            "statement_types": "NodeType in ('METHOD', 'CLASS', 'DATA')",
+            "modern_syntax": "ABAPVersion ge '740'"
+        },
+        "usage_hints": [
+            "ASTNodes provides parsed ABAP code structure",
+            "Use for validating generated AST transformations",
+            "CodePatterns shows common ABAP idioms"
+        ]
+    },
+    "general_hints": {
+        "max_items": 20,
+        "prefer_expand": false,
+        "use_select": true,
+        "common_expansions": [
+            "Methods",
+            "Parameters",
+            "Implementations"
+        ]
+    }
+}

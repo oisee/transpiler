@@ -1,33 +1,35 @@
-* Generated ABAP translation from JavaScript Fibonacci function
-* Original JavaScript:
-* function fibonacci(n) {
-*   if (n <= 1) return n;
-*   return fibonacci(n - 1) + fibonacci(n - 2);
-* }
+*&---------------------------------------------------------------------*
+*& Modern ABAP translation from JavaScript Fibonacci function
+*& Original JavaScript:
+*& function fibonacci(n) {
+*&   if (n <= 1) return n;
+*&   return fibonacci(n - 1) + fibonacci(n - 2);
+*& }
+*&---------------------------------------------------------------------*
 
-FORM fibonacci USING p_n TYPE i CHANGING p_result TYPE i.
-  DATA: lv_temp1 TYPE i,
-        lv_temp2 TYPE i.
-        
-  IF p_n LE 1.
-    p_result = p_n.
-    EXIT.
-  ENDIF.
+CLASS lcl_math_utilities DEFINITION.
+  PUBLIC SECTION.
+    CLASS-METHODS: fibonacci
+      IMPORTING
+        iv_n TYPE i
+      RETURNING
+        VALUE(rv_result) TYPE i.
+ENDCLASS.
+
+CLASS lcl_math_utilities IMPLEMENTATION.
+  METHOD fibonacci.
+    " Base case: fibonacci(0) = 0, fibonacci(1) = 1
+    rv_result = COND #( 
+      WHEN iv_n <= 1 
+      THEN iv_n
+      ELSE fibonacci( iv_n - 1 ) + fibonacci( iv_n - 2 ) 
+    ).
+  ENDMETHOD.
+ENDCLASS.
+
+" Test program
+START-OF-SELECTION.
+  DATA(lv_input) = 8.
+  DATA(lv_result) = lcl_math_utilities=>fibonacci( lv_input ).
   
-  " Calculate fibonacci(n-1)
-  PERFORM fibonacci USING p_n - 1 CHANGING lv_temp1.
-  
-  " Calculate fibonacci(n-2) 
-  PERFORM fibonacci USING p_n - 2 CHANGING lv_temp2.
-  
-  " Return sum
-  p_result = lv_temp1 + lv_temp2.
-ENDFORM.
-
-" Test the fibonacci function
-DATA: lv_input TYPE i VALUE 8,
-      lv_result TYPE i.
-
-PERFORM fibonacci USING lv_input CHANGING lv_result.
-
-WRITE: / 'Fibonacci(', lv_input, ') =', lv_result.
+  WRITE: / |Fibonacci({ lv_input }) = { lv_result }|.

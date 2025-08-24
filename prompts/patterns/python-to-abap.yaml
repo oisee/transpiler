@@ -56,12 +56,50 @@ pattern_mappings:
       
       CLASS lcl_file_handler IMPLEMENTATION.
         METHOD read_file.
+          DATA: lv_file_table TYPE string_table,
+                lv_rc TYPE i.
+          
           TRY.
-              OPEN DATASET iv_filename FOR INPUT IN TEXT MODE ENCODING UTF-8.
-              READ DATASET iv_filename INTO rv_content.
-              CLOSE DATASET iv_filename.
+              " Use frontend services for file operations (client-side only)
+              CALL METHOD cl_gui_frontend_services=>gui_upload
+                EXPORTING
+                  filename                = iv_filename
+                  filetype                = 'ASC'
+                  has_field_separator     = abap_false
+                CHANGING
+                  data_tab                = lv_file_table
+                EXCEPTIONS
+                  file_open_error         = 1
+                  file_read_error         = 2
+                  no_batch                = 3
+                  gui_refuse_filetransfer = 4
+                  invalid_type            = 5
+                  no_authority            = 6
+                  unknown_error           = 7
+                  bad_data_format         = 8
+                  header_not_allowed      = 9
+                  separator_not_allowed   = 10
+                  header_too_long         = 11
+                  unknown_dp_error        = 12
+                  access_denied           = 13
+                  dp_out_of_memory        = 14
+                  disk_full               = 15
+                  dp_timeout              = 16.
+              
+              IF sy-subrc <> 0.
+                RAISE EXCEPTION TYPE cx_sy_file_open_mode.
+              ENDIF.
+              
+              " Concatenate table lines into single string
+              LOOP AT lv_file_table INTO DATA(lv_line).
+                IF rv_content IS INITIAL.
+                  rv_content = lv_line.
+                ELSE.
+                  rv_content = |{ rv_content }{ cl_abap_char_utilities=>cr_lf }{ lv_line }|.
+                ENDIF.
+              ENDLOOP.
+              
             CATCH cx_sy_file_open_mode INTO DATA(lo_error).
-              CLOSE DATASET iv_filename.
               RAISE EXCEPTION lo_error.
           ENDTRY.
         ENDMETHOD.
