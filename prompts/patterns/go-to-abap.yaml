@@ -1,0 +1,116 @@
+# Go to ABAP Pattern Mappings
+# Specific patterns and idioms for Go → ABAP translation
+
+pattern_mappings:
+  # Multiple return values
+  multiple_returns:
+    go: |
+      func divide(a, b float64) (float64, error) {
+          if b == 0 {
+              return 0, errors.New("division by zero")
+          }
+          return a / b, nil
+      }
+    
+    abap: |
+      CLASS lcl_math DEFINITION.
+        PUBLIC SECTION.
+          TYPES: BEGIN OF ty_division_result,
+                   value TYPE f,
+                   error TYPE string,
+                 END OF ty_division_result.
+          
+          CLASS-METHODS: divide
+            IMPORTING
+              iv_a TYPE f
+              iv_b TYPE f
+            RETURNING
+              VALUE(rs_result) TYPE ty_division_result.
+      ENDCLASS.
+      
+      CLASS lcl_math IMPLEMENTATION.
+        METHOD divide.
+          rs_result = COND #(
+            WHEN iv_b = 0
+            THEN VALUE #( error = 'division by zero' )
+            ELSE VALUE #( value = iv_a / iv_b ) ).
+        ENDMETHOD.
+      ENDCLASS.
+
+  # Defer statement
+  defer_statement:
+    go: |
+      func processFile() {
+          file := openFile()
+          defer file.Close()
+          // process file
+      }
+    
+    abap: |
+      CLASS lcl_file_processor DEFINITION.
+        PUBLIC SECTION.
+          CLASS-METHODS: process_file
+            RAISING cx_file_error.
+      ENDCLASS.
+      
+      CLASS lcl_file_processor IMPLEMENTATION.
+        METHOD process_file.
+          DATA(lo_file) = NEW cl_file( ).
+          
+          TRY.
+              lo_file->open( ).
+              " Process file operations here
+              
+            CLEANUP.
+              " Defer equivalent - always executed
+              IF lo_file IS BOUND.
+                lo_file->close( ).
+              ENDIF.
+          ENDTRY.
+        ENDMETHOD.
+      ENDCLASS.
+
+  # Interface implementation
+  interface_implementation:
+    go: |
+      type Writer interface {
+          Write([]byte) (int, error)
+      }
+      
+      type FileWriter struct {
+          path string
+      }
+      
+      func (f *FileWriter) Write(data []byte) (int, error) {
+          // implementation
+      }
+    
+    abap: |
+      INTERFACE lif_writer.
+        METHODS: write IMPORTING iv_data TYPE xstring
+                      EXPORTING ev_bytes TYPE i
+                               ev_error TYPE string.
+      ENDINTERFACE.
+      
+      CLASS lcl_file_writer DEFINITION.
+        PUBLIC SECTION.
+          INTERFACES: lif_writer.
+          DATA: mv_path TYPE string.
+      ENDCLASS.
+      
+      CLASS lcl_file_writer IMPLEMENTATION.
+        METHOD lif_writer~write.
+          " Implementation
+        ENDMETHOD.
+      ENDCLASS.
+
+additional_instructions: |
+  When translating Go to ABAP:
+  1. Convert multiple returns to CHANGING parameters
+  2. Transform defer statements to CLEANUP blocks
+  3. Map Go interfaces to ABAP interfaces
+  4. Convert goroutines to sequential or parallel RFC calls
+  5. Handle nil as INITIAL in ABAP
+  6. Map channels to events or shared memory
+  7. Convert Go structs to ABAP classes or structures
+  8. Transform error handling pattern to exceptions or return codes

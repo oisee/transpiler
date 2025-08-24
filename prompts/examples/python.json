@@ -1,0 +1,34 @@
+[
+  {
+    "type": "function",
+    "priority": 10,
+    "tags": ["basic", "function", "type_hints"],
+    "source": "def calculate_discount(price: float, customer_type: str) -> float:\n    discounts = {\n        'premium': 0.20,\n        'gold': 0.15,\n        'regular': 0.10\n    }\n    rate = discounts.get(customer_type, 0.05)\n    return price * (1 - rate)",
+    "target": "CLASS lcl_pricing DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: calculate_discount\n      IMPORTING\n        iv_price TYPE p DECIMALS 2\n        iv_customer_type TYPE string\n      RETURNING\n        VALUE(rv_final_price) TYPE p DECIMALS 2.\nENDCLASS.\n\nCLASS lcl_pricing IMPLEMENTATION.\n  METHOD calculate_discount.\n    DATA(lv_rate) = SWITCH #( iv_customer_type\n      WHEN 'premium' THEN CONV p( '0.20' )\n      WHEN 'gold' THEN CONV p( '0.15' )\n      WHEN 'regular' THEN CONV p( '0.10' )\n      ELSE CONV p( '0.05' ) ).\n    \n    rv_final_price = iv_price * ( 1 - lv_rate ).\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Python dict lookups become SWITCH expressions, type hints map to ABAP types, functional style with RETURNING"
+  },
+  {
+    "type": "class",
+    "priority": 9,
+    "tags": ["oop", "class", "inheritance"],
+    "source": "class BankAccount:\n    def __init__(self, account_number, initial_balance=0):\n        self.account_number = account_number\n        self.balance = initial_balance\n    \n    def deposit(self, amount):\n        if amount > 0:\n            self.balance += amount\n            return True\n        return False\n    \n    def withdraw(self, amount):\n        if 0 < amount <= self.balance:\n            self.balance -= amount\n            return True\n        return False\n    \n    def get_balance(self):\n        return self.balance",
+    "target": "CLASS lcl_bank_account DEFINITION.\n  PUBLIC SECTION.\n    DATA: mv_account_number TYPE string,\n          mv_balance TYPE p DECIMALS 2.\n    \n    METHODS: constructor IMPORTING iv_account_number TYPE string\n                                  iv_initial_balance TYPE p DECIMALS 2 DEFAULT 0,\n             deposit IMPORTING iv_amount TYPE p DECIMALS 2\n                    RETURNING VALUE(rv_success) TYPE abap_bool,\n             withdraw IMPORTING iv_amount TYPE p DECIMALS 2\n                     RETURNING VALUE(rv_success) TYPE abap_bool,\n             get_balance RETURNING VALUE(rv_balance) TYPE p DECIMALS 2.\nENDCLASS.\n\nCLASS lcl_bank_account IMPLEMENTATION.\n  METHOD constructor.\n    mv_account_number = iv_account_number.\n    mv_balance = iv_initial_balance.\n  ENDMETHOD.\n  \n  METHOD deposit.\n    IF iv_amount > 0.\n      mv_balance = mv_balance + iv_amount.\n      rv_success = abap_true.\n    ELSE.\n      rv_success = abap_false.\n    ENDIF.\n  ENDMETHOD.\n  \n  METHOD withdraw.\n    IF iv_amount > 0 AND iv_amount <= mv_balance.\n      mv_balance = mv_balance - iv_amount.\n      rv_success = abap_true.\n    ELSE.\n      rv_success = abap_false.\n    ENDIF.\n  ENDMETHOD.\n  \n  METHOD get_balance.\n    rv_balance = mv_balance.\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "__init__ becomes constructor, self.attributes become instance variables with mv_ prefix"
+  },
+  {
+    "type": "list_comprehension",
+    "priority": 8,
+    "tags": ["functional", "list", "comprehension"],
+    "source": "numbers = [1, 2, 3, 4, 5]\nsquares = [n ** 2 for n in numbers]\nevens = [n for n in numbers if n % 2 == 0]\npairs = [(x, y) for x in range(3) for y in range(3)]",
+    "target": "DATA: lt_numbers TYPE TABLE OF i,\n      lt_squares TYPE TABLE OF i,\n      lt_evens TYPE TABLE OF i,\n      BEGIN OF ls_pair,\n        x TYPE i,\n        y TYPE i,\n      END OF ls_pair,\n      lt_pairs LIKE TABLE OF ls_pair.\n\nlt_numbers = VALUE #( ( 1 ) ( 2 ) ( 3 ) ( 4 ) ( 5 ) ).\n\n\" List comprehension for squares\nlt_squares = VALUE #( FOR n IN lt_numbers ( n ** 2 ) ).\n\n\" Filtered list comprehension\nlt_evens = VALUE #( FOR n IN lt_numbers WHERE ( n MOD 2 = 0 ) ( n ) ).\n\n\" Nested list comprehension\nlt_pairs = VALUE #( FOR x = 0 WHILE x < 3\n                    ( FOR y = 0 WHILE y < 3\n                      ( x = x y = y ) ) ).",
+    "explanation": "List comprehensions map to VALUE constructor expressions with FOR loops"
+  },
+  {
+    "type": "exception_handling",
+    "priority": 7,
+    "tags": ["exceptions", "error_handling"],
+    "source": "def divide_numbers(a, b):\n    try:\n        result = a / b\n        return result\n    except ZeroDivisionError:\n        print('Cannot divide by zero')\n        return None\n    except TypeError as e:\n        print(f'Type error: {e}')\n        raise\n    finally:\n        print('Division operation completed')",
+    "target": "CLASS lcl_math_utils DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: divide_numbers\n      IMPORTING\n        iv_a TYPE f\n        iv_b TYPE f\n      RETURNING\n        VALUE(rv_result) TYPE f\n      RAISING\n        cx_sy_zerodivide\n        cx_sy_conversion_error.\nENDCLASS.\n\nCLASS lcl_math_utils IMPLEMENTATION.\n  METHOD divide_numbers.\n    TRY.\n        rv_result = iv_a / iv_b.\n        \n      CATCH cx_sy_zerodivide INTO DATA(lo_zero_error).\n        MESSAGE 'Cannot divide by zero' TYPE 'I'.\n        RAISE EXCEPTION lo_zero_error.\n        \n      CATCH cx_sy_conversion_error INTO DATA(lo_type_error).\n        MESSAGE |Type error: { lo_type_error->get_text( ) }| TYPE 'I'.\n        RAISE EXCEPTION lo_type_error.\n        \n      CLEANUP.\n        MESSAGE 'Division operation completed' TYPE 'I'.\n    ENDTRY.\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Python exceptions map to ABAP exception classes, finally becomes CLEANUP"
+  }
+]

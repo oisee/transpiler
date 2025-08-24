@@ -1,0 +1,171 @@
+# SAP Standard Naming Conventions and Guidelines
+# This prompt enforces SAP's official programming guidelines
+
+naming_conventions:
+  variables:
+    local:
+      prefix: "lv_"
+      example: "lv_customer_name"
+      description: "Local variables"
+    
+    global:
+      prefix: "gv_"
+      example: "gv_company_code"
+      description: "Global variables"
+    
+    constants:
+      local:
+        prefix: "lc_"
+        example: "lc_max_retries"
+      global:
+        prefix: "gc_"
+        example: "gc_default_currency"
+    
+    parameters:
+      importing:
+        prefix: "iv_"
+        example: "iv_customer_id"
+      exporting:
+        prefix: "ev_"
+        example: "ev_total_amount"
+      changing:
+        prefix: "cv_"
+        example: "cv_status"
+      returning:
+        prefix: "rv_"
+        example: "rv_success"
+  
+  tables:
+    local:
+      prefix: "lt_"
+      example: "lt_sales_orders"
+      description: "Local internal tables"
+    
+    global:
+      prefix: "gt_"
+      example: "gt_master_data"
+      description: "Global internal tables"
+    
+    range:
+      prefix: "lr_"
+      example: "lr_date_range"
+      description: "Range tables for SELECT-OPTIONS"
+  
+  structures:
+    local:
+      prefix: "ls_"
+      example: "ls_address"
+    
+    global:
+      prefix: "gs_"
+      example: "gs_company_info"
+    
+    work_area:
+      prefix: "wa_"
+      example: "wa_temp"
+      description: "Work areas (older style)"
+  
+  objects:
+    local:
+      prefix: "lo_"
+      example: "lo_alv_grid"
+    
+    global:
+      prefix: "go_"
+      example: "go_application"
+    
+    reference:
+      prefix: "lr_"
+      example: "lr_data"
+      description: "Data references"
+  
+  field_symbols:
+    prefix: "<fs_"
+    suffix: ">"
+    example: "<fs_line>"
+    description: "Field symbols for dynamic access"
+  
+  types:
+    table_type:
+      prefix: "tt_"
+      example: "tt_customer_list"
+    
+    structure_type:
+      prefix: "ty_"
+      example: "ty_address"
+    
+    element_type:
+      prefix: "ty_"
+      example: "ty_amount"
+
+code_organization:
+  method_structure: |
+    METHOD {method_name}.
+      " Method description
+      
+      " Local data declarations
+      DATA: ...
+      
+      " Input validation
+      IF iv_parameter IS INITIAL.
+        RAISE EXCEPTION TYPE cx_invalid_parameter.
+      ENDIF.
+      
+      " Main logic
+      ...
+      
+      " Return result
+      rv_result = ...
+    ENDMETHOD.
+  
+  class_structure: |
+    CLASS {class_name} DEFINITION.
+      PUBLIC SECTION.
+        " Public components
+        
+      PROTECTED SECTION.
+        " Protected components
+        
+      PRIVATE SECTION.
+        " Private components
+    ENDCLASS.
+    
+    CLASS {class_name} IMPLEMENTATION.
+      " Method implementations
+    ENDCLASS.
+
+best_practices:
+  performance:
+    - "Use field symbols for large table operations"
+    - "Use BINARY SEARCH with sorted tables"
+    - "Avoid nested SELECTs - use JOINs or FOR ALL ENTRIES"
+    - "Use internal tables instead of multiple database calls"
+    - "Clear internal tables when no longer needed"
+  
+  readability:
+    - "Use meaningful variable names"
+    - "Add comments for complex logic"
+    - "Keep methods short and focused"
+    - "Use constants instead of magic numbers"
+    - "Group related declarations together"
+  
+  error_handling:
+    - "Use exception classes, not legacy exceptions"
+    - "Always handle SY-SUBRC after operations"
+    - "Provide meaningful error messages"
+    - "Clean up resources in CLEANUP blocks"
+  
+  database_access:
+    - "Use OpenSQL instead of Native SQL"
+    - "Check SY-SUBRC after SELECT"
+    - "Use package size for large result sets"
+    - "Avoid SELECT * - specify needed fields"
+    - "Use appropriate indexes"
+
+additional_prompt: |
+  Follow SAP's official ABAP programming guidelines:
+  - Clean ABAP principles
+  - Proper exception handling with exception classes
+  - Use of ABAP Unit for testable code
+  - Separation of concerns (MVC pattern where applicable)
+  - Proper use of ABAP Objects over procedural programming

@@ -1,0 +1,336 @@
+# JavaScript to ABAP Pattern Mappings
+# Specific patterns and idioms for JS → ABAP translation
+
+pattern_mappings:
+  # Array methods to ABAP
+  array_map:
+    javascript: |
+      const doubled = numbers.map(n => n * 2);
+    
+    abap: |
+      DATA(lt_doubled) = VALUE tt_numbers(
+        FOR lv_number IN lt_numbers (
+          lv_number * 2
+        )
+      ).
+    
+    alternative_abap: |
+      LOOP AT lt_numbers INTO DATA(lv_number).
+        APPEND lv_number * 2 TO lt_doubled.
+      ENDLOOP.
+  
+  array_filter:
+    javascript: |
+      const adults = people.filter(p => p.age >= 18);
+    
+    abap: |
+      DATA(lt_adults) = FILTER #( lt_people WHERE age >= 18 ).
+    
+    alternative_abap: |
+      LOOP AT lt_people INTO DATA(ls_person) WHERE age >= 18.
+        APPEND ls_person TO lt_adults.
+      ENDLOOP.
+  
+  array_reduce:
+    javascript: |
+      const sum = numbers.reduce((acc, n) => acc + n, 0);
+    
+    abap: |
+      DATA(lv_sum) = REDUCE i(
+        INIT sum = 0
+        FOR number IN lt_numbers
+        NEXT sum = sum + number
+      ).
+    
+    alternative_abap: |
+      DATA: lv_sum TYPE i.
+      LOOP AT lt_numbers INTO DATA(lv_number).
+        lv_sum = lv_sum + lv_number.
+      ENDLOOP.
+  
+  array_find:
+    javascript: |
+      const found = items.find(item => item.id === searchId);
+    
+    abap: |
+      TRY.
+        DATA(ls_found) = lt_items[ id = lv_search_id ].
+      CATCH cx_sy_itab_line_not_found.
+        CLEAR ls_found.
+      ENDTRY.
+  
+  # Destructuring to ABAP
+  object_destructuring:
+    javascript: |
+      const { name, age, city } = person;
+    
+    abap: |
+      DATA(lv_name) = ls_person-name.
+      DATA(lv_age) = ls_person-age.
+      DATA(lv_city) = ls_person-city.
+  
+  array_destructuring:
+    javascript: |
+      const [first, second, ...rest] = items;
+    
+    abap: |
+      DATA(lv_first) = lt_items[ 1 ].
+      DATA(lv_second) = lt_items[ 2 ].
+      DATA(lt_rest) = lt_items.
+      DELETE lt_rest FROM 1 TO 2.
+  
+  # Promise/Async patterns
+  promise_then:
+    javascript: |
+      fetchData()
+        .then(data => processData(data))
+        .then(result => console.log(result))
+        .catch(error => console.error(error));
+    
+    abap: |
+      TRY.
+        DATA(lv_data) = fetch_data( ).
+        DATA(lv_result) = process_data( lv_data ).
+        WRITE: / lv_result.
+      CATCH cx_root INTO DATA(lo_error).
+        WRITE: / lo_error->get_text( ).
+      ENDTRY.
+  
+  async_await:
+    javascript: |
+      async function getData() {
+        try {
+          const response = await fetch(url);
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error(error);
+        }
+      }
+    
+    abap: |
+      METHOD get_data.
+        TRY.
+          DATA(lo_client) = create_http_client( iv_url ).
+          lo_client->send( ).
+          lo_client->receive( ).
+          
+          DATA(lv_json) = lo_client->response->get_cdata( ).
+          /ui2/cl_json=>deserialize(
+            EXPORTING json = lv_json
+            CHANGING data = rs_data
+          ).
+        CATCH cx_root INTO DATA(lo_error).
+          " Error handling
+          RAISE EXCEPTION TYPE cx_data_error
+            EXPORTING previous = lo_error.
+        ENDTRY.
+      ENDMETHOD.
+  
+  # Template literals to ABAP
+  template_literal:
+    javascript: |
+      const message = `Hello ${name}, you are ${age} years old`;
+    
+    abap: |
+      DATA(lv_message) = |Hello { lv_name }, you are { lv_age } years old|.
+  
+  # Spread operator
+  spread_array:
+    javascript: |
+      const combined = [...array1, ...array2];
+    
+    abap: |
+      DATA(lt_combined) = lt_array1.
+      APPEND LINES OF lt_array2 TO lt_combined.
+  
+  spread_object:
+    javascript: |
+      const updated = { ...original, name: 'New Name' };
+    
+    abap: |
+      DATA(ls_updated) = ls_original.
+      ls_updated-name = 'New Name'.
+  
+  # Arrow functions to ABAP
+  arrow_function:
+    javascript: |
+      const double = x => x * 2;
+      const add = (a, b) => a + b;
+    
+    abap: |
+      METHODS: double IMPORTING iv_x TYPE i
+                      RETURNING VALUE(rv_result) TYPE i,
+               add IMPORTING iv_a TYPE i
+                            iv_b TYPE i
+                   RETURNING VALUE(rv_result) TYPE i.
+      
+      METHOD double.
+        rv_result = iv_x * 2.
+      ENDMETHOD.
+      
+      METHOD add.
+        rv_result = iv_a + iv_b.
+      ENDMETHOD.
+  
+  # Optional chaining
+  optional_chaining:
+    javascript: |
+      const city = user?.address?.city ?? 'Unknown';
+    
+    abap: |
+      DATA(lv_city) = COND string(
+        WHEN ls_user IS NOT INITIAL AND
+             ls_user-address IS NOT INITIAL AND
+             ls_user-address-city IS NOT INITIAL
+        THEN ls_user-address-city
+        ELSE 'Unknown'
+      ).
+  
+  # Nullish coalescing
+  nullish_coalescing:
+    javascript: |
+      const value = input ?? defaultValue;
+    
+    abap: |
+      DATA(lv_value) = COND #(
+        WHEN iv_input IS NOT INITIAL
+        THEN iv_input
+        ELSE lc_default_value
+      ).
+
+# Class patterns
+class_patterns:
+  es6_class:
+    javascript: |
+      class Calculator {
+        constructor(initial = 0) {
+          this.value = initial;
+        }
+        
+        add(n) {
+          this.value += n;
+          return this;
+        }
+        
+        multiply(n) {
+          this.value *= n;
+          return this;
+        }
+        
+        get result() {
+          return this.value;
+        }
+      }
+    
+    abap: |
+      CLASS lcl_calculator DEFINITION.
+        PUBLIC SECTION.
+          DATA: mv_value TYPE i.
+          
+          METHODS: constructor IMPORTING iv_initial TYPE i DEFAULT 0,
+                   add IMPORTING iv_n TYPE i
+                       RETURNING VALUE(ro_self) TYPE REF TO lcl_calculator,
+                   multiply IMPORTING iv_n TYPE i
+                           RETURNING VALUE(ro_self) TYPE REF TO lcl_calculator,
+                   get_result RETURNING VALUE(rv_result) TYPE i.
+      ENDCLASS.
+      
+      CLASS lcl_calculator IMPLEMENTATION.
+        METHOD constructor.
+          mv_value = iv_initial.
+        ENDMETHOD.
+        
+        METHOD add.
+          mv_value = mv_value + iv_n.
+          ro_self = me.
+        ENDMETHOD.
+        
+        METHOD multiply.
+          mv_value = mv_value * iv_n.
+          ro_self = me.
+        ENDMETHOD.
+        
+        METHOD get_result.
+          rv_result = mv_value.
+        ENDMETHOD.
+      ENDCLASS.
+
+# Modern JavaScript features
+modern_features:
+  for_of_loop:
+    javascript: |
+      for (const item of items) {
+        console.log(item);
+      }
+    
+    abap: |
+      LOOP AT lt_items INTO DATA(ls_item).
+        WRITE: / ls_item.
+      ENDLOOP.
+  
+  for_in_loop:
+    javascript: |
+      for (const key in object) {
+        console.log(key, object[key]);
+      }
+    
+    abap: |
+      " ABAP doesn't have direct equivalent for iterating object keys
+      " Use structure components if known at compile time
+      DATA(lo_descr) = cl_abap_typedescr=>describe_by_data( ls_object ).
+      DATA(lo_struct) = CAST cl_abap_structdescr( lo_descr ).
+      
+      LOOP AT lo_struct->components INTO DATA(ls_comp).
+        ASSIGN COMPONENT ls_comp-name OF STRUCTURE ls_object TO FIELD-SYMBOL(<fs_value>).
+        WRITE: / ls_comp-name, <fs_value>.
+      ENDLOOP.
+  
+  object_entries:
+    javascript: |
+      Object.entries(obj).forEach(([key, value]) => {
+        console.log(key, value);
+      });
+    
+    abap: |
+      " Similar to for...in pattern above
+      " Use RTTI for dynamic structure access
+
+# Error handling patterns
+error_patterns:
+  try_catch_finally:
+    javascript: |
+      try {
+        const result = riskyOperation();
+        return result;
+      } catch (error) {
+        console.error('Operation failed:', error);
+        throw new Error('Custom error');
+      } finally {
+        cleanup();
+      }
+    
+    abap: |
+      TRY.
+        DATA(lv_result) = risky_operation( ).
+        rv_return = lv_result.
+      CATCH cx_root INTO DATA(lo_error).
+        MESSAGE lo_error->get_text( ) TYPE 'E'.
+        RAISE EXCEPTION TYPE cx_custom_error
+          EXPORTING previous = lo_error.
+      CLEANUP.
+        cleanup( ).
+      ENDTRY.
+
+additional_instructions: |
+  When translating JavaScript to ABAP:
+  1. Convert dynamic typing to static ABAP types
+  2. Transform asynchronous patterns to synchronous ABAP code
+  3. Map JavaScript's prototype chain to ABAP Objects inheritance
+  4. Convert callbacks to method calls or events
+  5. Handle undefined/null as INITIAL in ABAP
+  6. Use ABAP's string templates for template literals
+  7. Convert JSON operations to /ui2/cl_json serialization
+  8. Map console.log to WRITE or application logging
+  9. Transform module imports to ABAP includes or class usage
+  10. Preserve business logic while adapting to ABAP patterns

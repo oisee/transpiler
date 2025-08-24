@@ -1,0 +1,97 @@
+# Base Translation Prompt Configuration
+# This file defines the core prompts for code translation
+
+system_prompt: |
+  You are an expert code translator specializing in converting {source_language} to {target_language}.
+  Your task is to translate code while preserving:
+  1. Semantic meaning and business logic
+  2. Data structures and types
+  3. Control flow and error handling
+  4. Performance characteristics
+  5. Code organization and modularity
+
+user_prompt: |
+  Translate the following {source_language} code to {target_language}:
+  
+  ```{source_language_lower}
+  {source_code}
+  ```
+  
+  Provide only the translated code without any explanation.
+
+# Language-specific guidelines
+languages:
+  ABAP:
+    guidelines: |
+      - Use modern ABAP (7.40+) features:
+        * Local classes instead of FORM/PERFORM
+        * RETURNING parameters for functional style
+        * Inline declarations with DATA( )
+        * VALUE #( ) for structure/table creation
+        * NEW #( ) for object instantiation
+        * COND and SWITCH expressions
+        * String templates with | |
+        * FOR expressions in VALUE/REDUCE/FILTER
+      - Use proper ABAP naming conventions:
+        * lv_ for local variables (or inline DATA())
+        * lt_ for local tables
+        * ls_ for local structures
+        * lo_ for local objects
+        * Class names: lcl_ for local classes
+      - Convert to ABAP data types (STRING, TYPE I, TYPE P DECIMALS 2)
+      - Use modern constructs (method chaining, constructor expressions)
+      - Maintain ABAP style with uppercase keywords
+      - Add proper ABAP comments with double quotes
+      - Prefer functional methods over procedures
+      - Use exception classes over classic exceptions
+    
+    type_mappings:
+      javascript:
+        number: "TYPE P DECIMALS 2"
+        string: "TYPE STRING"
+        boolean: "TYPE ABAP_BOOL"
+        array: "TYPE TABLE OF"
+        object: "TYPE REF TO"
+        undefined: "TYPE STRING"
+        null: "TYPE STRING"
+      
+      python:
+        int: "TYPE I"
+        float: "TYPE F"
+        str: "TYPE STRING"
+        bool: "TYPE ABAP_BOOL"
+        list: "TYPE TABLE OF"
+        dict: "TYPE HASHED TABLE OF"
+        None: "TYPE STRING"
+      
+      go:
+        int: "TYPE I"
+        int32: "TYPE I"
+        int64: "TYPE INT8"
+        float32: "TYPE F"
+        float64: "TYPE F"
+        string: "TYPE STRING"
+        bool: "TYPE ABAP_BOOL"
+        "[]": "TYPE TABLE OF"
+        map: "TYPE HASHED TABLE OF"
+
+# Pattern-specific prompts
+patterns:
+  async_to_sync:
+    prompt: |
+      Convert asynchronous patterns (promises, async/await) to synchronous ABAP equivalents.
+      Use appropriate error handling with TRY/CATCH blocks.
+  
+  functional_to_procedural:
+    prompt: |
+      Transform functional programming patterns (map, filter, reduce) to procedural ABAP loops.
+      Use LOOP AT with WHERE conditions for filtering.
+      Use REDUCE for aggregations where appropriate.
+  
+  class_translation:
+    prompt: |
+      Convert classes to ABAP Objects with proper:
+      - PUBLIC/PRIVATE/PROTECTED sections
+      - METHODS and CLASS-METHODS
+      - Constructor as CONSTRUCTOR method
+      - Proper inheritance with INHERITING FROM

@@ -1,0 +1,42 @@
+[
+  {
+    "type": "function",
+    "priority": 10,
+    "tags": ["basic", "function"],
+    "source": "function calculateTotal(price, quantity, taxRate) {\n  const subtotal = price * quantity;\n  const tax = subtotal * taxRate;\n  return subtotal + tax;\n}",
+    "target": "CLASS lcl_calculator DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: calculate_total\n      IMPORTING\n        iv_price TYPE p DECIMALS 2\n        iv_quantity TYPE i\n        iv_tax_rate TYPE p DECIMALS 2\n      RETURNING\n        VALUE(rv_total) TYPE p DECIMALS 2.\nENDCLASS.\n\nCLASS lcl_calculator IMPLEMENTATION.\n  METHOD calculate_total.\n    rv_total = iv_price * iv_quantity * ( 1 + iv_tax_rate ).\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Functions become static methods with RETURNING parameters, inline declarations, functional style"
+  },
+  {
+    "type": "class",
+    "priority": 9,
+    "tags": ["oop", "class", "methods"],
+    "source": "class Counter {\n  constructor(initial = 0) {\n    this.value = initial;\n  }\n  \n  increment() {\n    this.value++;\n    return this.value;\n  }\n  \n  reset() {\n    this.value = 0;\n  }\n}",
+    "target": "CLASS lcl_counter DEFINITION.\n  PUBLIC SECTION.\n    METHODS: constructor IMPORTING iv_initial TYPE i DEFAULT 0,\n             increment RETURNING VALUE(rv_value) TYPE i,\n             reset,\n             get_value RETURNING VALUE(rv_value) TYPE i.\n    \n    CLASS-METHODS: create\n      IMPORTING iv_initial TYPE i DEFAULT 0\n      RETURNING VALUE(ro_counter) TYPE REF TO lcl_counter.\n      \n  PRIVATE SECTION.\n    DATA: mv_value TYPE i.\nENDCLASS.\n\nCLASS lcl_counter IMPLEMENTATION.\n  METHOD constructor.\n    mv_value = iv_initial.\n  ENDMETHOD.\n  \n  METHOD create.\n    ro_counter = NEW #( iv_initial ).\n  ENDMETHOD.\n  \n  METHOD increment.\n    ADD 1 TO mv_value.\n    rv_value = mv_value.\n  ENDMETHOD.\n  \n  METHOD reset.\n    CLEAR mv_value.\n  ENDMETHOD.\n  \n  METHOD get_value.\n    rv_value = mv_value.\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "ES6 classes map to ABAP Objects with factory methods using NEW #( ), private data encapsulation"
+  },
+  {
+    "type": "array_operations",
+    "priority": 8,
+    "tags": ["functional", "array", "map", "filter"],
+    "source": "const numbers = [1, 2, 3, 4, 5];\nconst doubled = numbers.map(n => n * 2);\nconst evens = numbers.filter(n => n % 2 === 0);\nconst sum = numbers.reduce((acc, n) => acc + n, 0);",
+    "target": "\" Using inline declarations and modern expressions\nDATA(lt_numbers) = VALUE int_table( ( 1 ) ( 2 ) ( 3 ) ( 4 ) ( 5 ) ).\n\n\" Map operation with inline declaration\nDATA(lt_doubled) = VALUE int_table( \n  FOR lv_num IN lt_numbers ( lv_num * 2 ) ).\n\n\" Filter operation with inline\nDATA(lt_evens) = FILTER #( lt_numbers WHERE table_line MOD 2 = 0 ).\n\n\" Reduce operation with inline\nDATA(lv_sum) = REDUCE i( \n  INIT sum = 0\n  FOR num IN lt_numbers\n  NEXT sum = sum + num ).",
+    "explanation": "Array methods map to VALUE constructor expressions, FILTER, and REDUCE operators in modern ABAP"
+  },
+  {
+    "type": "async",
+    "priority": 7,
+    "tags": ["async", "promise", "api"],
+    "source": "async function fetchUserData(userId) {\n  try {\n    const response = await fetch(`/api/users/${userId}`);\n    const data = await response.json();\n    return data;\n  } catch (error) {\n    console.error('Failed to fetch user:', error);\n    throw error;\n  }\n}",
+    "target": "CLASS lcl_user_service DEFINITION.\n  PUBLIC SECTION.\n    TYPES: BEGIN OF ty_user_data,\n             id TYPE string,\n             name TYPE string,\n             email TYPE string,\n           END OF ty_user_data.\n    \n    CLASS-METHODS: fetch_user_data\n      IMPORTING\n        iv_user_id TYPE string\n      RETURNING\n        VALUE(rs_user_data) TYPE ty_user_data\n      RAISING\n        cx_http_error.\nENDCLASS.\n\nCLASS lcl_user_service IMPLEMENTATION.\n  METHOD fetch_user_data.\n    DATA(lv_url) = |/api/users/{ iv_user_id }|.\n    \n    TRY.\n        DATA(lo_http_client) = cl_web_http_client_manager=>create_by_http_destination(\n          cl_http_destination_provider=>create_by_url( lv_url ) ).\n        \n        DATA(lo_response) = lo_http_client->execute( if_web_http_client=>get ).\n        DATA(lv_json) = lo_response->get_text( ).\n        \n        /ui2/cl_json=>deserialize(\n          EXPORTING\n            json = lv_json\n          CHANGING\n            data = rs_user_data ).\n        \n      CATCH cx_root INTO DATA(lo_error).\n        RAISE EXCEPTION TYPE cx_http_error\n          EXPORTING\n            textid = cx_http_error=>http_error\n            previous = lo_error.\n    ENDTRY.\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Async/await patterns convert to synchronous ABAP with proper error handling using TRY/CATCH"
+  },
+  {
+    "type": "object_manipulation",
+    "priority": 6,
+    "tags": ["object", "destructuring", "spread"],
+    "source": "const person = { name: 'John', age: 30, city: 'Berlin' };\nconst { name, age } = person;\nconst updated = { ...person, age: 31 };\nconst hasCity = 'city' in person;",
+    "target": "\" Using inline structure declaration\nDATA(ls_person) = VALUE struct( \n  name = 'John' \n  age = 30 \n  city = 'Berlin' ).\n\n\" Destructuring with inline\nDATA(lv_name) = ls_person-name.\nDATA(lv_age) = ls_person-age.\n\n\" Spread with update using VALUE #( BASE )\nDATA(ls_updated) = VALUE #( \n  BASE ls_person \n  age = 31 ).\n\n\" Check field existence with COND\nDATA(lv_has_city) = COND #( \n  WHEN ls_person-city IS NOT INITIAL \n  THEN abap_true \n  ELSE abap_false ).\n\n\" Alternative: use CORRESPONDING for partial copy\nDATA(ls_partial) = CORRESPONDING #( ls_person EXCEPT age )."
+    "explanation": "Objects become structures, destructuring is explicit field access, spread is structure copy"
+  }
+]

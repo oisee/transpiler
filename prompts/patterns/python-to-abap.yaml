@@ -1,0 +1,79 @@
+# Python to ABAP Pattern Mappings
+# Specific patterns and idioms for Python → ABAP translation
+
+pattern_mappings:
+  # Dictionary operations
+  dict_operations:
+    python: |
+      data = {'name': 'John', 'age': 30}
+      value = data.get('name', 'Unknown')
+      data['city'] = 'Berlin'
+    
+    abap: |
+      " Using VALUE expression for structure initialization
+      DATA(ls_data) = VALUE struct(
+        name = 'John'
+        age = 30 ).
+      
+      " Dictionary get with default using COND
+      DATA(lv_value) = COND string(
+        WHEN ls_data-name IS NOT INITIAL
+        THEN ls_data-name
+        ELSE 'Unknown' ).
+      
+      " Adding new field (would need structure enhancement in real ABAP)
+      ls_data = VALUE #( BASE ls_data city = 'Berlin' ).
+
+  # List comprehensions
+  list_comprehension:
+    python: |
+      squares = [x**2 for x in range(10) if x % 2 == 0]
+    
+    abap: |
+      " Modern ABAP list comprehension equivalent
+      DATA(lt_squares) = VALUE int_table(
+        FOR i = 0 WHILE i < 10
+        WHERE ( i MOD 2 = 0 )
+        ( ipow( base = i exp = 2 ) ) ).
+
+  # With statement (context managers)
+  with_statement:
+    python: |
+      with open('file.txt', 'r') as f:
+          content = f.read()
+    
+    abap: |
+      CLASS lcl_file_handler DEFINITION.
+        PUBLIC SECTION.
+          CLASS-METHODS: read_file
+            IMPORTING
+              iv_filename TYPE string
+            RETURNING
+              VALUE(rv_content) TYPE string
+            RAISING
+              cx_sy_file_open_mode.
+      ENDCLASS.
+      
+      CLASS lcl_file_handler IMPLEMENTATION.
+        METHOD read_file.
+          TRY.
+              OPEN DATASET iv_filename FOR INPUT IN TEXT MODE ENCODING UTF-8.
+              READ DATASET iv_filename INTO rv_content.
+              CLOSE DATASET iv_filename.
+            CATCH cx_sy_file_open_mode INTO DATA(lo_error).
+              CLOSE DATASET iv_filename.
+              RAISE EXCEPTION lo_error.
+          ENDTRY.
+        ENDMETHOD.
+      ENDCLASS.
+
+additional_instructions: |
+  When translating Python to ABAP:
+  1. Convert dynamic typing to static ABAP types
+  2. Transform list comprehensions to VALUE expressions
+  3. Map Python dicts to ABAP structures or hashed tables
+  4. Convert generators to internal table processing
+  5. Handle None as INITIAL in ABAP
+  6. Use ABAP string templates for f-strings
+  7. Convert decorators to method wrappers or aspects
+  8. Map Python modules to ABAP includes or classes

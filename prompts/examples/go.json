@@ -1,0 +1,34 @@
+[
+  {
+    "type": "function",
+    "priority": 10,
+    "tags": ["basic", "function", "error_handling"],
+    "source": "func processOrder(orderID string, amount float64) (string, error) {\n    if orderID == \"\" {\n        return \"\", errors.New(\"order ID cannot be empty\")\n    }\n    if amount <= 0 {\n        return \"\", errors.New(\"amount must be positive\")\n    }\n    \n    status := fmt.Sprintf(\"Order %s processed for $%.2f\", orderID, amount)\n    return status, nil\n}",
+    "target": "CLASS lcl_order_processor DEFINITION.\n  PUBLIC SECTION.\n    TYPES: BEGIN OF ty_result,\n             status TYPE string,\n             error TYPE string,\n           END OF ty_result.\n    \n    CLASS-METHODS: process_order\n      IMPORTING\n        iv_order_id TYPE string\n        iv_amount TYPE p DECIMALS 2\n      RETURNING\n        VALUE(rs_result) TYPE ty_result.\nENDCLASS.\n\nCLASS lcl_order_processor IMPLEMENTATION.\n  METHOD process_order.\n    rs_result = COND #(\n      WHEN iv_order_id IS INITIAL\n      THEN VALUE #( error = 'order ID cannot be empty' )\n      WHEN iv_amount <= 0\n      THEN VALUE #( error = 'amount must be positive' )\n      ELSE VALUE #( status = |Order { iv_order_id } processed for ${ iv_amount }| ) ).\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Go's multiple return values become a structure with RETURNING, using COND for conditional logic"
+  },
+  {
+    "type": "struct",
+    "priority": 9,
+    "tags": ["struct", "methods", "oop"],
+    "source": "type Product struct {\n    ID       string\n    Name     string\n    Price    float64\n    Quantity int\n}\n\nfunc (p *Product) TotalValue() float64 {\n    return p.Price * float64(p.Quantity)\n}\n\nfunc (p *Product) UpdateQuantity(qty int) {\n    if qty >= 0 {\n        p.Quantity = qty\n    }\n}",
+    "target": "CLASS lcl_product DEFINITION.\n  PUBLIC SECTION.\n    TYPES: BEGIN OF ty_product,\n             id TYPE string,\n             name TYPE string,\n             price TYPE p DECIMALS 2,\n             quantity TYPE i,\n           END OF ty_product.\n    \n    METHODS: constructor\n               IMPORTING is_product TYPE ty_product OPTIONAL,\n             total_value\n               RETURNING VALUE(rv_value) TYPE p DECIMALS 2,\n             update_quantity\n               IMPORTING iv_qty TYPE i\n               RETURNING VALUE(ro_self) TYPE REF TO lcl_product.\n    \n    CLASS-METHODS: create\n      IMPORTING is_data TYPE ty_product\n      RETURNING VALUE(ro_product) TYPE REF TO lcl_product.\n      \n  PRIVATE SECTION.\n    DATA: ms_data TYPE ty_product.\nENDCLASS.\n\nCLASS lcl_product IMPLEMENTATION.\n  METHOD constructor.\n    ms_data = is_product.\n  ENDMETHOD.\n  \n  METHOD create.\n    ro_product = NEW #( is_data ).\n  ENDMETHOD.\n  \n  METHOD total_value.\n    rv_value = ms_data-price * ms_data-quantity.\n  ENDMETHOD.\n  \n  METHOD update_quantity.\n    ms_data-quantity = COND #( WHEN iv_qty >= 0 THEN iv_qty ELSE ms_data-quantity ).\n    ro_self = me. \" Method chaining\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Go structs become ABAP classes with factory methods using NEW #(), method chaining, and structured types"
+  },
+  {
+    "type": "slice_operations",
+    "priority": 8,
+    "tags": ["slice", "array", "iteration"],
+    "source": "func processItems(items []string) []string {\n    var results []string\n    \n    for i, item := range items {\n        if item != \"\" {\n            processed := fmt.Sprintf(\"%d: %s\", i, strings.ToUpper(item))\n            results = append(results, processed)\n        }\n    }\n    \n    return results\n}",
+    "target": "CLASS lcl_item_processor DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: process_items\n      IMPORTING\n        it_items TYPE string_table\n      RETURNING\n        VALUE(rt_results) TYPE string_table.\nENDCLASS.\n\nCLASS lcl_item_processor IMPLEMENTATION.\n  METHOD process_items.\n    rt_results = VALUE #(\n      FOR i = 0 WHILE i < lines( it_items )\n      LET item = it_items[ i + 1 ]\n          idx = i\n      IN\n      ( COND #( WHEN item IS NOT INITIAL\n                THEN |{ idx }: { to_upper( item ) }| ) )\n      WHERE ( table_line IS NOT INITIAL ) ).\n  ENDMETHOD.\nENDCLASS.",
+    "explanation": "Go slices become internal tables, range loops become LOOP AT, append becomes APPEND TO"
+  },
+  {
+    "type": "goroutine",
+    "priority": 7,
+    "tags": ["concurrency", "channel", "goroutine"],
+    "source": "func fetchData(urls []string) []string {\n    ch := make(chan string, len(urls))\n    \n    for _, url := range urls {\n        go func(u string) {\n            // Simulate fetch\n            data := fmt.Sprintf(\"Data from %s\", u)\n            ch <- data\n        }(url)\n    }\n    \n    var results []string\n    for i := 0; i < len(urls); i++ {\n        results = append(results, <-ch)\n    }\n    \n    return results\n}",
+    "target": "CLASS lcl_data_fetcher DEFINITION.\n  PUBLIC SECTION.\n    CLASS-METHODS: fetch_data\n      IMPORTING\n        it_urls TYPE string_table\n      RETURNING\n        VALUE(rt_results) TYPE string_table.\n        \n    CLASS-METHODS: fetch_data_parallel\n      IMPORTING\n        it_urls TYPE string_table\n      RETURNING\n        VALUE(rt_results) TYPE string_table.\nENDCLASS.\n\nCLASS lcl_data_fetcher IMPLEMENTATION.\n  METHOD fetch_data.\n    \" Sequential processing with VALUE expression\n    rt_results = VALUE #(\n      FOR url IN it_urls\n      ( |Data from { url }| ) ).\n  ENDMETHOD.\n  \n  METHOD fetch_data_parallel.\n    \" Note: Simplified - real parallel processing would use:\n    \" - CL_ABAP_PARALLEL for parallel execution\n    \" - CALL FUNCTION STARTING NEW TASK for async RFC\n    DATA(lo_parallel) = NEW cl_abap_parallel( ).\n    rt_results = VALUE #(\n      FOR url IN it_urls\n      ( |Data from { url }| ) ).\n  ENDMETHOD.\nENDCLASS."
+    "explanation": "Goroutines don't have direct ABAP equivalent, converted to sequential processing with parallel processing notes"
+  }
+]

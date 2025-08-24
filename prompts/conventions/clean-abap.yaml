@@ -1,0 +1,175 @@
+# Clean ABAP Guidelines
+# Based on the Clean ABAP style guide: https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md
+
+principles:
+  - "Clarity over brevity"
+  - "Testability from the start"
+  - "Single responsibility principle"
+  - "Don't repeat yourself (DRY)"
+  - "Keep it simple (KISS)"
+
+naming:
+  use_descriptive_names:
+    good: "calculate_vat_amount"
+    bad: "calc_vat"
+    
+  avoid_abbreviations:
+    good: "customer_address"
+    bad: "cust_addr"
+    
+  use_snake_case:
+    good: "process_sales_order"
+    bad: "ProcessSalesOrder"
+    
+  boolean_names:
+    good: "is_valid", "has_authority", "can_edit"
+    bad: "valid", "authority", "edit"
+
+methods:
+  keep_it_short:
+    max_lines: 20
+    recommendation: "Extract complex logic into separate methods"
+  
+  single_responsibility:
+    good: |
+      METHOD calculate_discount.
+        " Only calculates discount
+      ENDMETHOD.
+      
+      METHOD apply_discount.
+        " Only applies the discount
+      ENDMETHOD.
+    
+    bad: |
+      METHOD calculate_and_apply_discount.
+        " Does too many things
+      ENDMETHOD.
+  
+  prefer_returning:
+    good: |
+      METHODS get_customer_name
+        IMPORTING iv_customer_id TYPE kunnr
+        RETURNING VALUE(rv_name) TYPE string.
+    
+    bad: |
+      METHODS get_customer_name
+        IMPORTING iv_customer_id TYPE kunnr
+        EXPORTING ev_name TYPE string.
+  
+  avoid_optional_parameters:
+    recommendation: "Use method overloading or separate methods"
+
+error_handling:
+  use_class_based_exceptions:
+    good: |
+      RAISE EXCEPTION TYPE cx_invalid_input
+        EXPORTING
+          textid = cx_invalid_input=>invalid_customer_id
+          customer_id = iv_customer_id.
+    
+    bad: |
+      MESSAGE e001(z_custom) WITH iv_customer_id.
+  
+  fail_fast:
+    good: |
+      METHOD process_order.
+        IF iv_order_id IS INITIAL.
+          RAISE EXCEPTION TYPE cx_mandatory_parameter.
+        ENDIF.
+        
+        " Main logic here
+      ENDMETHOD.
+  
+  specific_exceptions:
+    good: "cx_invalid_customer_id"
+    bad: "cx_error"
+
+code_style:
+  use_inline_declarations:
+    good: |
+      DATA(lv_total) = calculate_total( ).
+      LOOP AT lt_items INTO DATA(ls_item).
+    
+    bad: |
+      DATA: lv_total TYPE i.
+      lv_total = calculate_total( ).
+  
+  prefer_new_syntax:
+    good: |
+      DATA(lt_filtered) = FILTER #( lt_customers 
+                                     WHERE city = 'BERLIN' ).
+      DATA(lv_sum) = REDUCE i( INIT sum = 0
+                                FOR customer IN lt_customers
+                                NEXT sum = sum + customer-amount ).
+    
+    bad: |
+      LOOP AT lt_customers INTO ls_customer WHERE city = 'BERLIN'.
+        APPEND ls_customer TO lt_filtered.
+      ENDLOOP.
+  
+  avoid_deep_nesting:
+    max_depth: 3
+    recommendation: "Extract nested logic into separate methods"
+  
+  use_boolean_expressions:
+    good: |
+      rv_is_valid = ( lv_amount > 0 AND lv_amount <= lv_max_amount ).
+    
+    bad: |
+      IF lv_amount > 0 AND lv_amount <= lv_max_amount.
+        rv_is_valid = abap_true.
+      ELSE.
+        rv_is_valid = abap_false.
+      ENDIF.
+
+tables:
+  use_appropriate_type:
+    standard: "For sequential access"
+    sorted: "For frequent READ TABLE with key"
+    hashed: "For frequent READ TABLE with unique key"
+  
+  prefer_line_exists:
+    good: |
+      IF line_exists( lt_customers[ customer_id = iv_id ] ).
+    
+    bad: |
+      READ TABLE lt_customers TRANSPORTING NO FIELDS
+        WITH KEY customer_id = iv_id.
+      IF sy-subrc = 0.
+
+comments:
+  avoid_obvious:
+    bad: |
+      " Increment counter
+      lv_counter = lv_counter + 1.
+  
+  explain_why_not_what:
+    good: |
+      " Customer requested special handling for orders > $10000
+      IF lv_amount > 10000.
+  
+  keep_updated:
+    principle: "Outdated comments are worse than no comments"
+
+testing:
+  write_testable_code:
+    - "Inject dependencies"
+    - "Avoid static dependencies"
+    - "Use interfaces for external systems"
+    - "Keep business logic separate from UI/DB"
+  
+  test_one_thing:
+    good: "test_calculate_discount_for_premium_customer"
+    bad: "test_discount_calculation"
+
+additional_clean_abap_prompt: |
+  Apply Clean ABAP principles:
+  - Write self-documenting code that doesn't need comments
+  - Use meaningful names that express intent
+  - Keep functions and methods small and focused
+  - Prefer immutability where possible
+  - Make dependencies explicit
+  - Write code that is easy to test
+  - Use modern ABAP syntax (7.40+) features
+  - Avoid premature optimization
+  - Refactor regularly to maintain code quality
