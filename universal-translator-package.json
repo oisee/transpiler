@@ -1,0 +1,100 @@
+{
+  "name": "universal-abap-translator",
+  "version": "1.0.0",
+  "description": "Universal code-to-ABAP translation system implementing Article 019 architecture",
+  "main": "universal-translator.js",
+  "type": "module",
+  "scripts": {
+    "start": "node universal-translator.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "mocha --timeout 10000 'test/**/*.test.js'",
+    "test:integration": "node test/integration.js",
+    "generate-dataset": "node dataset-generator.js",
+    "download-datasets": "bash scripts/download-datasets.sh",
+    "process-datasets": "node scripts/process-datasets.js",
+    "validate-translations": "node scripts/validate-translations.js",
+    "benchmark": "node scripts/benchmark.js",
+    "lint": "eslint *.js scripts/*.js",
+    "format": "prettier --write *.js scripts/*.js examples/**/*.js"
+  },
+  "dependencies": {
+    "@abaplint/core": "^2.113.185",
+    "tree-sitter": "^0.21.0",
+    "tree-sitter-javascript": "^0.21.2",
+    "tree-sitter-python": "^0.21.0",
+    "tree-sitter-go": "^0.21.0",
+    "tree-sitter-typescript": "^0.21.2",
+    "tree-sitter-java": "^0.21.0",
+    "tree-sitter-c": "^0.21.3",
+    "tree-sitter-cpp": "^0.22.0",
+    "tree-sitter-ruby": "^0.21.0",
+    "tree-sitter-rust": "^0.21.2",
+    "axios": "^1.6.0",
+    "fs-extra": "^11.2.0",
+    "glob": "^10.3.10",
+    "commander": "^11.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "inquirer": "^9.2.12",
+    "yaml": "^2.3.4",
+    "semver": "^7.5.4",
+    "tar": "^6.2.0",
+    "progress": "^2.0.3",
+    "p-limit": "^5.0.0",
+    "p-queue": "^8.0.1",
+    "lodash": "^4.17.21",
+    "uuid": "^9.0.1",
+    "crypto-js": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "mocha": "^10.2.0",
+    "chai": "^4.3.10",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "nyc": "^15.1.0",
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "abap",
+    "transpiler",
+    "code-translation",
+    "ast",
+    "tree-sitter",
+    "javascript",
+    "python",
+    "go",
+    "universal-translator"
+  ],
+  "author": "Universal ABAP Translator Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abaplint/universal-translator.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "universal-translator.js",
+    "dataset-generator.js",
+    "scripts/",
+    "examples/",
+    "lib/",
+    "README.md"
+  ],
+  "nyc": {
+    "reporter": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "exclude": [
+      "test/**",
+      "node_modules/**"
+    ]
+  }
+}
