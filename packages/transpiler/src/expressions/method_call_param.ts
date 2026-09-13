@@ -6,7 +6,10 @@ import {IExpressionTranspiler} from "./_expression_transpiler";
 import {ParameterListSTranspiler} from "./parameter_list_s";
 
 export class MethodCallParamTranspiler implements IExpressionTranspiler {
-  private readonly m: abaplint.Types.MethodDefinition | undefined;
+  // IMethodDefinition rather than MethodDefinition: a built-in's definition
+  // comes from BuiltIn.searchBuiltin and is the interface, and it is exactly
+  // the case that needs the default importing parameter's name
+  private readonly m: abaplint.IMethodDefinition | undefined;
   private readonly suppliedReturning: string | undefined;
 
   /** On a real system "RETURNING IS SUPPLIED" is true exactly when the method is called
@@ -14,7 +17,7 @@ export class MethodCallParamTranspiler implements IExpressionTranspiler {
    * @param m                 the resolved method definition
    * @param suppliedReturning name of the RETURNING parameter to flag as supplied,
    *                          ie. the call is functional and the value is consumed */
-  public constructor(m?: abaplint.Types.MethodDefinition, suppliedReturning?: string) {
+  public constructor(m?: abaplint.IMethodDefinition, suppliedReturning?: string) {
     this.m = m;
     this.suppliedReturning = suppliedReturning;
   }
