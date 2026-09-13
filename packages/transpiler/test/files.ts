@@ -552,4 +552,77 @@ ENDINTERFACE.`;
     expect(code).to.not.include("zif_aff_oo_types");
   });
 
+
+  it("a built-in function inside a constructor expression is a built-in, not a method", async () => {
+    // the syntax check records the first name in an expression and not the
+    // rest, so cos and nmax arrived unrecorded here and used to be emitted
+    // as this.cos( ) and this.nmax( ), which do not exist
+    const clas = `CLASS zcl_builtin DEFINITION PUBLIC CREATE PUBLIC.
+  PUBLIC SECTION.
+    METHODS run.
+ENDCLASS.
+CLASS zcl_builtin IMPLEMENTATION.
+  METHOD run.
+    DATA lv_ax TYPE f.
+    DATA lv_light TYPE f.
+    lv_light = CONV f( 1 ) + CONV f( 2 ) * nmax( val1 = 0 val2 = lv_ax * cos( lv_ax ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+    const objects = await runFiles([{filename: "zcl_builtin.clas.abap", contents: clas}]);
+    const js = objects[0].chunk.getCode();
+    expect(js).to.contain("abap.builtin.cos(");
+    expect(js).to.contain("abap.builtin.nmax(");
+    expect(js).to.not.contain("this.cos(");
+    expect(js).to.not.contain("this.nmax(");
+  });
+
+  it("a method of the class wins over a built-in of the same name", async () => {
+    const clas = `CLASS zcl_own DEFINITION PUBLIC CREATE PUBLIC.
+  PUBLIC SECTION.
+    METHODS run.
+    METHODS cos IMPORTING iv TYPE f OPTIONAL RETURNING VALUE(rv) TYPE f.
+ENDCLASS.
+CLASS zcl_own IMPLEMENTATION.
+  METHOD run.
+    DATA lv TYPE f.
+    lv = CONV f( 1 ) + cos( 2 ).
+  ENDMETHOD.
+  METHOD cos.
+    rv = 1.
+  ENDMETHOD.
+ENDCLASS.`;
+    const objects = await runFiles([{filename: "zcl_own.clas.abap", contents: clas}]);
+    const js = objects[0].chunk.getCode();
+    expect(js).to.contain("this.cos(");
+    expect(js).to.not.contain("abap.builtin.cos(");
+  });
+
+
+  it("a percent in a filename survives the import specifier", async () => {
+    // abapGit encodes the dot of a Web Repository object's name, so
+    // ZO4D_06_PLASMA.PNG is stored as zo4d_06_plasma%2epng. A specifier is
+    // percent-decoded before it resolves, so the percent has to be escaped
+    // or the import looks for zo4d_06_plasma.png and the whole init script
+    // throws before anything is served
+    const w3mi = `<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_W3MI" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <WWWDATA>
+    <RELID>MI</RELID>
+    <OBJID>ZTEST%2EPNG</OBJID>
+    <TEXT>test</TEXT>
+   </WWWDATA>
+  </asx:values>
+ </asx:abap>
+</abapGit>`;
+    const res = await runResult([
+      {filename: "ztest%2epng.w3mi.xml", contents: w3mi},
+      {filename: "ztest%2epng.w3mi.data", contents: "AAAA"},
+    ]);
+    const init = res.initializationScript + res.initializationScript2;
+    expect(init).to.contain("ztest%252epng.w3mi.mjs");
+    expect(init).to.not.contain('"./ztest%2epng.w3mi.mjs"');
+  });
+
 });

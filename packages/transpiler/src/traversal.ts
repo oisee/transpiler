@@ -423,7 +423,7 @@ export class Traversal {
     return attr;
   }
 
-  public isBuiltinMethod(token: abaplint.Token): boolean {
+  public isBuiltinMethod(token: abaplint.Token, allowUnrecorded = false): boolean {
     const scope = this.findCurrentScopeByToken(token);
     if (scope === undefined) {
       return false;
@@ -432,6 +432,46 @@ export class Traversal {
     for (const r of scope.getData().references) {
       if (r.referenceType === abaplint.ReferenceType.BuiltinMethodReference
           && r.position.getStart().equals(token.getStart())) {
+        return true;
+      }
+    }
+
+    // No reference was recorded, which does not mean it is not a built-in.
+    // Inside an expression carrying more than one constructor expression the
+    // syntax check records the first name and not the rest, so
+    // "lv = CONV f( 1 ) + CONV f( 2 ) * nmax( val1 = 0 val2 = cos( x ) )"
+    // leaves cos and nmax unrecorded and they used to be emitted as methods
+    // of the class: this.cos( ), which does not exist and fails at runtime.
+    //
+    // A name is only taken as a built-in when nothing nearer answers to it,
+    // because a class is allowed a method called COS and it wins.
+    if (allowUnrecorded === false) {
+      return false;
+    }
+    const name = token.getStr();
+    if (abaplint.BuiltIn.searchBuiltin(name.toLowerCase()) === undefined) {
+      return false;
+    }
+    return this.methodOfEnclosingClass(token, name) === false;
+  }
+
+  // is there a method of this name in the class the token sits in, including
+  // the ones it inherits
+  private methodOfEnclosingClass(token: abaplint.Token, name: string): boolean {
+    let scope = this.findCurrentScopeByToken(token);
+    while (scope !== undefined && scope.getIdentifier().stype !== abaplint.ScopeType.ClassImplementation) {
+      scope = scope.getParent();
+    }
+    if (scope === undefined) {
+      return false;
+    }
+    const def = this.findClassDefinition(scope.getIdentifier().sname, scope);
+    if (def === undefined) {
+      return false;
+    }
+    const wanted = name.toUpperCase();
+    for (const method of def.getMethodDefinitions()?.getAll() || []) {
+      if (method.getName().toUpperCase() === wanted) {
         return true;
       }
     }

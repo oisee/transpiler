@@ -40,7 +40,7 @@ export class MethodCallChainTranspiler implements IExpressionTranspiler {
 
         const discard = this.discardResult === true && c === lastCall;
         const sub = prefix === undefined
-          ? new MethodCallTranspiler("", undefined, discard).transpile(c, traversal)
+          ? new MethodCallTranspiler("", undefined, discard, isFirst).transpile(c, traversal)
           : new MethodCallTranspiler(".bind(this)", method, discard).transpile(c, traversal);
 
         if (sub.getCode().startsWith("abap.builtin.")
