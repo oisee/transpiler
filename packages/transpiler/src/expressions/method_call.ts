@@ -8,14 +8,20 @@ export class MethodCallTranspiler implements IExpressionTranspiler {
   private readonly postName: string;
   private readonly method: {def: Types.MethodDefinition, name: string} | undefined;
   private readonly discardResult: boolean;
+  private readonly firstInChain: boolean;
 
   /** @param postName      inserted between the method name and the parameters, eg. ".bind(this)"
    *  @param method        the already resolved method reference, saves looking it up again
    *  @param discardResult the RETURNING value of this call is not consumed */
-  public constructor(postName = "", method?: {def: Types.MethodDefinition, name: string}, discardResult = false) {
+  // firstInChain: nothing came before this call, so a bare name here can be
+  // a built-in function. After a "->" it never can, it is a method of
+  // whatever the chain has reached, and COUNT is both a built-in and a
+  // perfectly good method name.
+  public constructor(postName = "", method?: {def: Types.MethodDefinition, name: string}, discardResult = false, firstInChain = false) {
     this.postName = postName;
     this.method = method;
     this.discardResult = discardResult;
+    this.firstInChain = firstInChain;
   }
 
   public transpile(node: Nodes.ExpressionNode, traversal: Traversal): Chunk {
@@ -31,7 +37,7 @@ export class MethodCallTranspiler implements IExpressionTranspiler {
     const m = this.method ?? traversal.findMethodReference(nameToken, scope);
 
     let name = nameToken.getStr().toLowerCase();
-    const isBuiltin = traversal.isBuiltinMethod(nameToken);
+    const isBuiltin = traversal.isBuiltinMethod(nameToken, this.firstInChain);
     if (isBuiltin) {
       // todo: this is not correct, the method name might be shadowed
       name = "abap.builtin." + name + "(";
