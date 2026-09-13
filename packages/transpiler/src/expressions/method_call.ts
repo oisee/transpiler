@@ -1,4 +1,4 @@
-import {Nodes, Expressions, Visibility, ScopeType, Types} from "@abaplint/core";
+import {Nodes, Expressions, Visibility, ScopeType, Types, BuiltIn} from "@abaplint/core";
 import {IExpressionTranspiler} from "./_expression_transpiler";
 import {Traversal} from "../traversal";
 import {MethodCallParamTranspiler} from "./method_call_param";
@@ -38,6 +38,15 @@ export class MethodCallTranspiler implements IExpressionTranspiler {
 
     let name = nameToken.getStr().toLowerCase();
     const isBuiltin = traversal.isBuiltinMethod(nameToken, this.firstInChain);
+    // A built-in takes its single argument by name, sin({val: x}), so the
+    // definition that says what the name is has to be found even when the
+    // syntax check recorded no reference to this call. Without it the
+    // argument is emitted positionally, sin(x), and the runtime reads .val
+    // of undefined - a call that looks right, next to identical calls in the
+    // same file that are right.
+    const definition = isBuiltin === true
+      ? m?.def ?? BuiltIn.searchBuiltin(name)
+      : m?.def;
     if (isBuiltin) {
       // todo: this is not correct, the method name might be shadowed
       name = "abap.builtin." + name + "(";
@@ -81,7 +90,7 @@ export class MethodCallTranspiler implements IExpressionTranspiler {
 
     const ret = new Chunk();
     ret.append(name, nameToken, traversal);
-    ret.appendChunk(new MethodCallParamTranspiler(m?.def, returning).transpile(step, traversal));
+    ret.appendChunk(new MethodCallParamTranspiler(definition, returning).transpile(step, traversal));
     ret.appendString(post + ")");
 
     return ret;
