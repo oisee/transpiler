@@ -353,7 +353,7 @@ export class HashedTable implements ITable {
       // float, and wrapping every one as an Integer first rounded a sine
       // table to zeros before the row ever saw the value
       const tmp = this.getRowType().clone();
-      tmp.set(Number.isInteger(item) ? new Integer().set(item) : new Float().set(item));
+      tmp.set(Number.isInteger(item) ? Integer.calculated(item) : new Float().set(item));
       return tmp;
     } else if (typeof item === "string") {
       const tmp = this.getRowType().clone();
@@ -673,7 +673,7 @@ export class Table implements ITable {
       // float, and wrapping every one as an Integer first rounded a sine
       // table to zeros before the row ever saw the value
       const tmp = this.getRowType().clone();
-      tmp.set(Number.isInteger(item) ? new Integer().set(item) : new Float().set(item));
+      tmp.set(Number.isInteger(item) ? Integer.calculated(item) : new Float().set(item));
       return tmp;
     } else if (typeof item === "string") {
       const tmp = this.getRowType().clone();
