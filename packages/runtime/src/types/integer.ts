@@ -1,5 +1,4 @@
 import {throwError} from "../throw_error";
-import {Date} from "./date";
 import {Float} from "./float";
 import {Hex} from "./hex";
 import {XString} from "./xstring";
@@ -12,6 +11,7 @@ import {String} from "./string";
 import {DecFloat34} from "./decfloat34";
 import {Time} from "./time";
 import {FieldSymbol} from "./field_symbol";
+import {Packed} from "./packed";
 
 export const DIGITS = new RegExp(/^\s*-?\+?\d+\.?\d* *$/i);
 
@@ -41,6 +41,14 @@ export function toInteger(value: string, exception = true): number {
 export function roundHalfAwayFromZero(value: number): number {
   const rounded = value < 0 ? -Math.round(-value) : Math.round(value);
   return rounded === 0 ? 0 : rounded;
+}
+
+/** a value converted to type i, CX_SY_CONVERSION_OVERFLOW if it is out of range */
+function checkConversion(value: number): number {
+  if (value > MAX_INTEGER || value < MIN_INTEGER) {
+    throwError("CX_SY_CONVERSION_OVERFLOW");
+  }
+  return value;
 }
 
 export class Integer implements INumeric {
@@ -81,11 +89,19 @@ export class Integer implements INumeric {
     return this;
   }
 
+  /** the result of integer arithmetic, without a range check: the calculation type is decided by
+   * the target, a p or int8 target takes 2147483647 + 1 as it is, and an i target raises
+   * CX_SY_ARITHMETIC_OVERFLOW when the result is assigned to it, see set() */
+  public static calculated(value: number): Integer {
+    const n = new Integer();
+    n.value = value;
+    return n;
+  }
+
   private fromText(text: string): number {
     try {
-      return toInteger(text);
+      return checkConversion(toInteger(text));
     } catch (e) {
-      // a system clears the target before it raises, so the handler sees it initial
       this.value = 0;
       throw e;
     }
@@ -97,29 +113,59 @@ export class Integer implements INumeric {
     }
 
     if (typeof value === "number") {
-      this.value = roundHalfAwayFromZero(value);
+      // a number is the result of a calculation or a built-in function. A whole number in range
+      // is the common case and is taken as it is, + 0 turns -0 into 0
+      if (Number.isInteger(value) && value <= MAX_INTEGER && value >= MIN_INTEGER) {
+        this.value = value + 0;
+        return this;
+      }
+      const v = roundHalfAwayFromZero(value);
+      if (v > MAX_INTEGER || v < MIN_INTEGER) {
+        throwError("CX_SY_ARITHMETIC_OVERFLOW");
+      }
+      this.value = v;
+      return this;
     } else if (value instanceof Integer) {
-      this.set(value.get());
-    } else if (value instanceof Character) {
+      // a variable of type i is always in range, so a value outside it is an arithmetic result
+      const v = value.value;
+      if (v > MAX_INTEGER || v < MIN_INTEGER) {
+        throwError("CX_SY_ARITHMETIC_OVERFLOW");
+      }
+      this.value = v;
+      return this;
+    }
+    return this.convert(value);
+  }
+
+  /** set() for everything but the two common cases, kept apart so that set() stays small */
+  private convert(value: INumeric | ICharacter | Hex | string | Float | DecFloat34): Integer {
+    if (value instanceof Character) {
       this.value = this.fromText(value.get());
     } else if (value instanceof String) {
       this.value = this.fromText(value.get());
     } else if (value instanceof Integer8) {
-      this.set(Number(value.get()));
+      const v: bigint = value.get() as bigint;
+      if (v > 2147483647n || v < -2147483648n) {
+        throwError("CX_SY_CONVERSION_OVERFLOW");
+      }
+      this.value = Number(v);
     } else if (value instanceof FieldSymbol) {
-// dispatch on the type the field symbol points to, get() would only give its plain value
       if (value.getPointer() === undefined) {
         throw new Error("GETWA_NOT_ASSIGNED");
       }
       this.set(value.getPointer());
     } else if (value instanceof Time) {
-// t is converted to the number of seconds since midnight, not the HHMMSS digits
       this.value = value.getNumeric();
-    } else if (value instanceof Float || value instanceof DecFloat34) {
-      this.set(roundHalfAwayFromZero(value.getRaw()));
-    } else if (value instanceof Date) {
-// d is converted to the number of days since 01.01.0001, not the YYYYMMDD digits
-      this.value = value.getNumeric();
+    } else if (value instanceof Float) {
+      // rounding comes first, 2147483647.4 fits and 2147483647.5 does not
+      const v = roundHalfAwayFromZero(value.getRaw());
+      if (v > MAX_INTEGER || v < MIN_INTEGER) {
+        // the result of an arithmetic expression overflows, a variable does not convert
+        throwError(value.isCalculated() ? "CX_SY_ARITHMETIC_OVERFLOW" : "CX_SY_CONVERSION_OVERFLOW");
+      }
+      this.value = v;
+    } else if (value instanceof DecFloat34 || value instanceof Packed) {
+      this.value = checkConversion(roundHalfAwayFromZero(value instanceof Packed ? value.get() : value.getRaw()));
     } else if (value instanceof Hex || value instanceof XString || value instanceof HexUInt8) {
 // the last four bytes, 00 on the left, as a signed integer; an empty xstring is 0
       const hex = value.get().slice(-8);
@@ -127,17 +173,19 @@ export class Integer implements INumeric {
       if (hex.length === 8 && num > 0x7FFFFFFF) {
         num = num - 0x100000000;
       }
-      this.set(num);
+      this.value = num;
     } else if (typeof value === "string") {
       this.value = this.fromText(value);
     } else {
-      this.set(value.get());
+      const v = value.get();
+      if (typeof v === "number") {
+        this.value = checkConversion(roundHalfAwayFromZero(v));
+      } else if (typeof v === "string") {
+        this.value = this.fromText(v);
+      } else {
+        this.set(v);
+      }
     }
-/*
-    if (this.value > 2147483647 || this.value < -2147483648) {
-      throwError("CX_SY_ARITHMETIC_OVERFLOW");
-    }
-*/
     return this;
   }
 
