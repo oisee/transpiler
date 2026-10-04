@@ -5,6 +5,7 @@ import {ICharacter} from "./_character";
 import {INumeric} from "./_numeric";
 import {Character} from "./character";
 import {throwError} from "../throw_error";
+import {Integer} from "./integer";
 import {Integer8} from "./integer8";
 
 export class XString implements ICharacter {
@@ -26,7 +27,7 @@ export class XString implements ICharacter {
     return this.qualifiedName;
   }
 
-  public set(value: ICharacter | INumeric | string | number) {
+  public set(value: ICharacter | INumeric | Integer8 | string | number) {
     if (typeof value === "string") {
       // the input is interpreted as hexadecimal digits, the conversion stops at
       // the first character which is not an uppercase hex digit
@@ -39,16 +40,11 @@ export class XString implements ICharacter {
       if (this.value.length % 2 === 1) {
         this.value = "0" + this.value;
       }
-    } else if (value instanceof Integer8) {
-      const v: bigint = (value as Integer8).get();
-      if (v < 0n) {
-        // two's complement, as int8 -> x LENGTH 8
-        this.value = new Hex({length: 8}).set(value).get();
-      } else {
-        this.value = v.toString(16).toUpperCase();
-        if (this.value.length % 2 === 1) {
-          this.value = "0" + this.value;
-        }
+    } else if (value instanceof Integer8 || value instanceof Integer) {
+      const bits = value instanceof Integer8 ? 64 : 32;
+      this.value = BigInt.asUintN(bits, BigInt(value.get())).toString(16).toUpperCase();
+      if (this.value.length % 2 === 1) {
+        this.value = "0" + this.value;
       }
     } else {
       let v = value.get();
