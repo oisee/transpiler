@@ -12,9 +12,11 @@ import {ValueBodyTranspiler} from "./value_body";
 
 export class SourceTranspiler implements IExpressionTranspiler {
   private readonly addGet: boolean;
+  private readonly packedTarget: boolean;
 
-  public constructor(addGet = false) {
+  public constructor(addGet = false, packedTarget = false) {
     this.addGet = addGet;
+    this.packedTarget = packedTarget;
   }
 
   // the operands of a chain of & / && (the rearranger leaves them as a binary
@@ -92,7 +94,11 @@ export class SourceTranspiler implements IExpressionTranspiler {
         } else if (c.get() instanceof Expressions.Cond) {
           ret.appendChunk(traversal.traverse(c));
         } else if (c.get() instanceof Expressions.ArithOperator) {
-          ret = new Chunk().appendChunk(traversal.traverse(c)).appendString("(").appendChunk(ret).appendString(",");
+          let operator = traversal.traverse(c);
+          if (this.packedTarget && ["+", "-", "*", "/", "DIV", "MOD"].includes(c.concatTokens().trim().toUpperCase())) {
+            operator = new Chunk().appendString(operator.getCode().replace("abap.operators.", "abap.packedOperators.") + "Packed");
+          }
+          ret = new Chunk().appendChunk(operator).appendString("(").appendChunk(ret).appendString(",");
           post.appendString(")");
           if (this.addGet) {
             post.append(".get()", c, traversal);
@@ -107,7 +113,7 @@ export class SourceTranspiler implements IExpressionTranspiler {
             ret.append(".get()", c, traversal);
           }
         } else if (c.get() instanceof Expressions.Source) {
-          ret.appendChunk(new SourceTranspiler(this.addGet).transpile(c, traversal));
+          ret.appendChunk(new SourceTranspiler(this.addGet, this.packedTarget).transpile(c, traversal));
         } else if (c.get() instanceof Expressions.Arrow) {
           ret = new Chunk().appendString("(").appendChunk(ret).appendString(").get().");
         } else if (c.get() instanceof Expressions.AttributeChain) {
