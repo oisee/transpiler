@@ -9,6 +9,7 @@ import {HexUInt8} from "./hex_uint8";
 import {Character} from "./character";
 import {String} from "./string";
 import {DecFloat34} from "./decfloat34";
+import {Date} from "./date";
 import {Time} from "./time";
 import {FieldSymbol} from "./field_symbol";
 import {Packed} from "./packed";
@@ -154,7 +155,7 @@ export class Integer implements INumeric {
         throw new Error("GETWA_NOT_ASSIGNED");
       }
       this.set(value.getPointer());
-    } else if (value instanceof Time) {
+    } else if (value instanceof Date || value instanceof Time) {
       this.value = value.getNumeric();
     } else if (value instanceof Float) {
       // rounding comes first, 2147483647.4 fits and 2147483647.5 does not

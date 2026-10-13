@@ -30,7 +30,9 @@ export class MoveTranspiler implements IStatementTranspiler {
     }
 
     const packedTarget = this.isPackedTarget(node, sourceExpression, targetExpressions.length, traversal);
-    let source = packedTarget ? new SourceTranspiler(false, false, true).transpile(sourceExpression!, traversal) : this.isInt8Calculation(node, sourceExpression, targetExpressions.length, traversal)
+    let source = packedTarget
+      ? new SourceTranspiler(false, false, true).transpile(sourceExpression!, traversal)
+      : this.isInt8Calculation(node, sourceExpression, targetExpressions.length, traversal)
       ? new SourceTranspiler(false, true).transpile(sourceExpression!, traversal)
       : traversal.traverse(sourceExpression);
 

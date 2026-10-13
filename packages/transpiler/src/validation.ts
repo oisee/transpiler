@@ -150,7 +150,7 @@ export class Validation {
     }
 
     const conf = new Config(JSON.stringify(config));
-    const only = this.plugin === undefined ? this.options?.only : undefined;
+    const only = this.options?.only;
     if (only !== undefined && JSON.stringify(reg.getConfig().get()) === JSON.stringify(conf.get())) {
       // setConfig marks every object dirty; a run that builds some objects only, over a
       // registry that already has this configuration, keeps what was parsed and checked

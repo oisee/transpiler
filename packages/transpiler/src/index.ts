@@ -68,7 +68,7 @@ export class Transpiler {
     progress?.set(reg.getObjectCount().total, "Building");
     for (const obj of reg.getObjects()) {
       await progress?.tick("Building, " + obj.getName());
-      if (this.plugin === undefined && this.options?.only?.(obj) === false) {
+      if (this.options?.only?.(obj) === false) {
         continue;
       }
       // the temporary names ("unique1", ..., and the DO/WHILE sy-index backups
