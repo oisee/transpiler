@@ -1,4 +1,5 @@
 import {expandIN} from "./expand_in";
+import {sqlEscape} from "./sql_escape";
 import {FieldSymbol, HashedTable, Table} from "./types";
 
 type DynamicCondition = string | Table | HashedTable | {get(): string};
@@ -53,7 +54,7 @@ export function expandDynamic(input: DynamicCondition, evaluate: (name: string) 
           if (found === undefined) {
             throw new Error(`expandDynamic: Field symbol ${name} does not have field ${match[2]}`);
           }
-          code = code.replace(regex, " '" + found.get() + "'");
+          code = code.replace(regex, " '" + sqlEscape(found.get()) + "'");
         }
       } else {
         break;
@@ -69,7 +70,7 @@ export function expandDynamic(input: DynamicCondition, evaluate: (name: string) 
         name = name.toLowerCase();
         const found = evaluate(name);
         if (found instanceof FieldSymbol) {
-          code = code.replace(regex, " '" + found.get() + "'");
+          code = code.replace(regex, " '" + sqlEscape(found.get()) + "'");
         }
       } else {
         break;

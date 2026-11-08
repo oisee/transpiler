@@ -3544,4 +3544,153 @@ WRITE lines( <tab> ).`;
     }, {snowflake: false});
   });
 
+  // A host variable in a WHERE travels as text here, where a system binds it.
+  // Only the quote needs doubling: the value x' OR '1'='1 used to match every
+  // row, and a'b used to be a syntax error.
+  describe("host variables with quotes", () => {
+    const t100 = {filename: "t100.tabl.xml", contents: tabl_t100xml};
+    // WRITE pads a CHAR field to its length
+    const output = () => abap.console.get().split("\n").map(l => l.trimEnd()).join("\n");
+    const rows = `
+    DATA ls_row TYPE t100.
+    ls_row-sprsl = 'E'.
+    ls_row-arbgb = 'A''B'.
+    ls_row-msgnr = '001'.
+    ls_row-text = 'one'.
+    INSERT t100 FROM ls_row.
+    ls_row-arbgb = 'A''''B'.
+    ls_row-msgnr = '002'.
+    ls_row-text = 'two'.
+    INSERT t100 FROM ls_row.
+    ls_row-arbgb = 'A\\B'.
+    ls_row-msgnr = '003'.
+    ls_row-text = 'three'.
+    INSERT t100 FROM ls_row.
+    ls_row-arbgb = 'PLAIN'.
+    ls_row-msgnr = '004'.
+    ls_row-text = 'four'.
+    INSERT t100 FROM ls_row.`;
+
+    it("SELECT, a quote, two quotes and a backslash in the key", async () => {
+      const code = rows + `
+    DATA lv_key TYPE c LENGTH 20.
+    DATA ls_result TYPE t100.
+    lv_key = 'A''B'.
+    SELECT SINGLE * FROM t100 INTO ls_result WHERE arbgb = lv_key.
+    WRITE / ls_result-text.
+    lv_key = 'A''''B'.
+    SELECT SINGLE * FROM t100 INTO @ls_result WHERE arbgb = @lv_key.
+    WRITE / ls_result-text.
+    lv_key = 'A\\B'.
+    SELECT SINGLE * FROM t100 INTO ls_result WHERE arbgb = lv_key.
+    WRITE / ls_result-text.`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("one\ntwo\nthree");
+      });
+    });
+
+    it("SELECT, a quote in the key does not become a condition", async () => {
+      const code = rows + `
+    DATA lv_key TYPE c LENGTH 20.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    lv_key = 'x'' OR ''1''=''1'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE arbgb = lv_key.
+    WRITE / sy-subrc.
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("4\n0");
+      });
+    });
+
+    it("SELECT, LIKE keeps its wildcard and escapes the quote", async () => {
+      const code = rows + `
+    DATA lv_pattern TYPE string.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    lv_pattern = 'A''%'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE arbgb LIKE lv_pattern ORDER BY msgnr.
+    WRITE / lines( lt_result ).
+    lv_pattern = '%\\%'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE arbgb LIKE lv_pattern.
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("2\n1");
+      });
+    });
+
+    it("SELECT, IN with host values and FOR ALL ENTRIES", async () => {
+      const code = rows + `
+    DATA lv_one TYPE c LENGTH 20.
+    DATA lv_two TYPE c LENGTH 20.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    DATA lt_fae TYPE STANDARD TABLE OF t100 WITH DEFAULT KEY.
+    DATA ls_fae LIKE LINE OF lt_fae.
+    lv_one = 'A''B'.
+    lv_two = 'A\\B'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE arbgb IN (lv_one, lv_two).
+    WRITE / lines( lt_result ).
+    ls_fae-arbgb = 'A''''B'.
+    APPEND ls_fae TO lt_fae.
+    SELECT * FROM t100 INTO TABLE lt_result FOR ALL ENTRIES IN lt_fae WHERE arbgb = lt_fae-arbgb.
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("2\n1");
+      });
+    });
+
+    it("UPDATE SET and UPDATE FROM touch only the quoted key", async () => {
+      const code = rows + `
+    DATA lv_key TYPE c LENGTH 20.
+    DATA lv_text TYPE c LENGTH 73.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    lv_key = 'x'' OR ''1''=''1'.
+    lv_text = 'oracle'.
+    UPDATE t100 SET text = lv_text WHERE arbgb = lv_key.
+    WRITE / sy-dbcnt.
+    lv_key = 'A''B'.
+    lv_text = 'it''s'.
+    UPDATE t100 SET text = lv_text WHERE arbgb = lv_key.
+    WRITE / sy-dbcnt.
+    ls_row-sprsl = 'E'.
+    ls_row-arbgb = 'A''''B'.
+    ls_row-msgnr = '002'.
+    ls_row-text = 'from'.
+    UPDATE t100 FROM ls_row.
+    WRITE / sy-dbcnt.
+    SELECT * FROM t100 INTO TABLE lt_result ORDER BY msgnr.
+    LOOP AT lt_result INTO ls_row.
+      WRITE / ls_row-text.
+    ENDLOOP.`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("0\n1\n1\nit's\nfrom\nthree\nfour");
+      });
+    });
+
+    it("DELETE WHERE a quoted key removes that row only", async () => {
+      const code = rows + `
+    DATA lv_key TYPE c LENGTH 20.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    lv_key = 'x'' OR ''1''=''1'.
+    DELETE FROM t100 WHERE arbgb = lv_key.
+    WRITE / sy-dbcnt.
+    lv_key = 'A''B'.
+    DELETE FROM t100 WHERE arbgb = lv_key.
+    WRITE / sy-dbcnt.
+    SELECT * FROM t100 INTO TABLE lt_result.
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("0\n1\n3");
+      });
+    });
+
+    it("a backtick literal with a quote in the WHERE", async () => {
+      const code = rows + `
+    DATA ls_result TYPE t100.
+    SELECT SINGLE * FROM t100 INTO ls_result WHERE arbgb = \`A'B\`.
+    WRITE / ls_result-text.`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("one");
+      });
+    });
+  });
+
 });
