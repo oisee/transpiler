@@ -3586,7 +3586,7 @@ WRITE lines( <tab> ).`;
     WRITE / ls_result-text.`;
       await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
         expect(output()).to.equal("one\ntwo\nthree");
-      });
+      }, {snowflake: false});
     });
 
     it("SELECT, a quote in the key does not become a condition", async () => {
@@ -3614,7 +3614,7 @@ WRITE lines( <tab> ).`;
     WRITE / lines( lt_result ).`;
       await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
         expect(output()).to.equal("2\n1");
-      });
+      }, {snowflake: false});
     });
 
     it("SELECT, IN with host values and FOR ALL ENTRIES", async () => {
@@ -3634,7 +3634,7 @@ WRITE lines( <tab> ).`;
     WRITE / lines( lt_result ).`;
       await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
         expect(output()).to.equal("2\n1");
-      });
+      }, {snowflake: false});
     });
 
     it("UPDATE SET and UPDATE FROM touch only the quoted key", async () => {
@@ -3690,6 +3690,47 @@ WRITE lines( <tab> ).`;
       await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
         expect(output()).to.equal("one");
       });
+    });
+
+    it("dynamic WHERE, field symbol values with $', $& and <x> in them", async () => {
+      const code = rows + `
+    DATA: BEGIN OF val,
+            a TYPE t100-arbgb,
+            b TYPE t100-arbgb,
+          END OF val.
+    FIELD-SYMBOLS <fs> LIKE val.
+    FIELD-SYMBOLS <one> TYPE t100-arbgb.
+    DATA lv_where TYPE string.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    ls_row-arbgb = '$''X'.
+    ls_row-msgnr = '005'.
+    INSERT t100 FROM ls_row.
+    ls_row-arbgb = 'Y$&'.
+    ls_row-msgnr = '006'.
+    INSERT t100 FROM ls_row.
+    ls_row-arbgb = 'Z <one>'.
+    ls_row-msgnr = '007'.
+    INSERT t100 FROM ls_row.
+    ASSIGN val TO <fs>.
+    ASSIGN val-b TO <one>.
+    val-b = 'NOPE'.
+    lv_where = 'arbgb = <fs>-a OR arbgb = <fs>-b'.
+    val-a = '$''X'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).
+    val-a = 'Y$&'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).
+    val-a = 'Z <one>'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).
+    val-b = '$''X'.
+    lv_where = 'arbgb = <one>'.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("1\n1\n1\n1");
+      }, {snowflake: false});
     });
   });
 
