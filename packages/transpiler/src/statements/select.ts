@@ -21,9 +21,9 @@ export class SelectTranspiler implements IStatementTranspiler {
       throw new Error("SelectTranspiler, UNION ALL todo");
     } else if (node.findDirectTokenByText("DISTINCT") !== undefined) {
       throw new Error("SelectTranspiler, UNION DISTINCT todo");
-    } else if (node.findDirectExpression(abaplint.Expressions.Select)?.findDirectTokenByText("UPDATE") !== undefined) {
-      return new Chunk(`throw new Error("SELECT SINGLE FOR UPDATE, not supported, transpiler");`);
     }
+    // SELECT SINGLE FOR UPDATE runs as the SELECT: a host that runs one
+    // dialog step at a time already holds what the row lock would give
 
     let target = "undefined";
     let intoCorrespondingStructure = false;
