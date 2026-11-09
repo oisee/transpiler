@@ -37,7 +37,9 @@ export class MoveTranspiler implements IStatementTranspiler {
       ? this.correspondingGeneric(sourceExpression, targets[0], traversal)
       : undefined;
     if (source === undefined) {
-      source = packedTarget ? new SourceTranspiler(false, false, true).transpile(sourceExpression!, traversal) : this.isInt8Calculation(node, sourceExpression, targetExpressions.length, traversal)
+      source = packedTarget
+        ? new SourceTranspiler(false, false, true).transpile(sourceExpression!, traversal)
+        : this.isInt8Calculation(node, sourceExpression, targetExpressions.length, traversal)
         ? new SourceTranspiler(false, true).transpile(sourceExpression!, traversal)
         : traversal.traverse(sourceExpression);
     }

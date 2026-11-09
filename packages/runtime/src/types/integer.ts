@@ -1,4 +1,5 @@
 import {throwError} from "../throw_error";
+import {Date} from "./date";
 import {Float} from "./float";
 import {Hex} from "./hex";
 import {XString} from "./xstring";
@@ -102,6 +103,7 @@ export class Integer implements INumeric {
     try {
       return checkConversion(toInteger(text));
     } catch (e) {
+      // a system clears the target before it raises, so the handler sees it initial
       this.value = 0;
       throw e;
     }
@@ -150,11 +152,16 @@ export class Integer implements INumeric {
       }
       this.value = Number(v);
     } else if (value instanceof FieldSymbol) {
+// dispatch on the type the field symbol points to, get() would only give its plain value
       if (value.getPointer() === undefined) {
         throw new Error("GETWA_NOT_ASSIGNED");
       }
       this.set(value.getPointer());
     } else if (value instanceof Time) {
+// t is converted to the number of seconds since midnight, not the HHMMSS digits
+      this.value = value.getNumeric();
+    } else if (value instanceof Date) {
+// d is converted to the number of days since 01.01.0001, not the YYYYMMDD digits
       this.value = value.getNumeric();
     } else if (value instanceof Float) {
       // rounding comes first, 2147483647.4 fits and 2147483647.5 does not
