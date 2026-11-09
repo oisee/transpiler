@@ -31,10 +31,12 @@ describe("Multiple lines", () => {
     expect(await runSingle(abap)).to.include(`throw new Error("CATCH SYSTEM-EXCEPTIONS, not supported, transpiler");`);
   });
 
-  it("SELECT SINGLE FOR UPDATE, runtime error", async () => {
+  it("SELECT SINGLE FOR UPDATE runs as the SELECT", async () => {
     const abap = `SELECT SINGLE FOR UPDATE * FROM t100 INTO ls_result.`;
 
-    expect(await runSingle(abap, {ignoreSyntaxCheck: true})).to.include(`throw new Error("SELECT SINGLE FOR UPDATE, not supported, transpiler");`);
+    const js = await runSingle(abap, {ignoreSyntaxCheck: true});
+    expect(js).to.not.include(`not supported`);
+    expect(js).to.include(`abap.statements.select(`);
   });
 
   it("Interfaces should not be skipped", async () => {
