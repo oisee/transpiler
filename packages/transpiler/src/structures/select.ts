@@ -49,8 +49,12 @@ export class SelectTranspiler implements IStructureTranspiler {
       const table = sources.length === 1
         ? sources[0].findDirectExpression(abaplint.Expressions.DatabaseTable)?.concatTokens().toUpperCase()
         : undefined;
+      const intoTable = selectStatement.findFirstExpression(abaplint.Expressions.SQLIntoTable) !== undefined;
       if (table !== undefined) {
         ret.appendString(`let ${targetName} = new abap.types.Table(abap.DDIC["${table}"].type());\n`);
+      } else if (sources.length > 1 && sTarget !== undefined && intoTable) {
+        // PACKAGE SIZE ... INTO TABLE: the buffer holds rows of the target table
+        ret.appendString(`let ${targetName} = new abap.types.Table(${this.pointerOf(intoName)}.getRowType());\n`);
       } else if (sources.length > 1 && sTarget !== undefined) {
         ret.appendString(`let ${targetName} = new abap.types.Table(${this.cloneOf(intoName)});\n`);
       } else {
@@ -62,7 +66,8 @@ export class SelectTranspiler implements IStructureTranspiler {
         assign = `${intoName}.set(${loopName});\n`;
       }
     }
-    const selectHead = new SelectStatementTranspiler().transpile(selectStatement, traversal, targetName, loopOptions);
+    const selectHead = new SelectStatementTranspiler().transpile(selectStatement, traversal, targetName,
+                                                                 loopOptions, intoList !== undefined);
     ret.appendChunk(selectHead.ensureStartMapping(selectStatement, traversal));
 
     // todo: optimize, it should do real streaming?
@@ -103,7 +108,11 @@ abap.statements.append({source: ${targetName}, target: ${intoName}, lines: true}
 
   // a fresh value of the target's type, also when the target is a field symbol
   private cloneOf(code: string): string {
-    return `(${code} instanceof abap.types.FieldSymbol ? ${code}.getPointer() : ${code}).clone()`;
+    return `${this.pointerOf(code)}.clone()`;
+  }
+
+  private pointerOf(code: string): string {
+    return `(${code} instanceof abap.types.FieldSymbol ? ${code}.getPointer() : ${code})`;
   }
 
 }
