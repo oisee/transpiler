@@ -69,7 +69,12 @@ export function rowsToTarget(target: Structure | Table | HashedTable | FieldSymb
         // the n-th column goes into the n-th component, as INTO (list) assigns
         const components = Object.values(targetRow.get());
         const columns = Object.keys(row);
-        for (let index = 0; index < components.length && index < columns.length; index++) {
+        if (columns.length !== components.length) {
+          // two columns of one name came back as one: a fill by position
+          // would put every later column into the wrong target
+          throw new Error(`SELECT INTO list: ${columns.length} columns for ${components.length} targets`);
+        }
+        for (let index = 0; index < components.length; index++) {
           const value = row[columns[index]];
           if (value === null) {
             components[index].clear();

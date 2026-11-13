@@ -156,6 +156,26 @@ DATA lv_name TYPE zjhead-name.
 DATA lv_city TYPE zjadr-city.
 `;
 
+// ZJSAME shares the column names ID and NAME with ZJHEAD, so a select list
+// over their join holds two columns of the same name
+const tabl_zjsame = tablCharFields("ZJSAME", [
+  {name: "ID", length: 4, key: true},
+  {name: "NAME", length: 10}]);
+
+const sameSeed = `
+DATA ls_seed_s TYPE zjsame.
+ls_seed_s-id = 'A1'. ls_seed_s-name = 'UNO'. INSERT zjsame FROM ls_seed_s.
+ls_seed_s-id = 'A2'. ls_seed_s-name = 'DOS'. INSERT zjsame FROM ls_seed_s.
+DATA lv_sid TYPE zjsame-id.
+DATA lv_sname TYPE zjsame-name.
+`;
+
+const sameFiles = (code: string) => [
+  {filename: "zfoobar.prog.abap", contents: joinSeed + sameSeed + code},
+  {filename: "zjhead.tabl.xml", contents: tabl_zjhead},
+  {filename: "zjadr.tabl.xml", contents: tabl_zjadr},
+  {filename: "zjsame.tabl.xml", contents: tabl_zjsame}];
+
 const joinFiles = (code: string) => [
   {filename: "zfoobar.prog.abap", contents: joinSeed + code},
   {filename: "zjhead.tabl.xml", contents: tabl_zjhead},
@@ -836,6 +856,90 @@ LOOP AT lt_rows INTO ls_row.
 ENDLOOP.`;
     await runAllDatabases(abap, joinFiles(code), () => {
       expect(abap.console.getTrimmed()).to.equal("3\n0001 OSLO\n0002 BERGEN\n0003 ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, two same-named columns go to their own targets", async () => {
+    const code = `
+SELECT h~id s~id INTO (lv_id, lv_sid)
+  FROM ( zjhead AS h INNER JOIN zjsame AS s ON h~adrnr = s~id )
+  ORDER BY h~id.
+  WRITE / |{ lv_id } { lv_sid }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, sameFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("0001 A1\n0002 A2");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, same-named columns do not shift the later targets", async () => {
+    const code = `
+SELECT h~id s~id s~name h~name INTO (lv_id, lv_sid, lv_sname, lv_name)
+  FROM ( zjhead AS h INNER JOIN zjsame AS s ON h~adrnr = s~id )
+  ORDER BY h~id.
+  WRITE / |{ lv_id } { lv_sid } { lv_sname } { lv_name }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, sameFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("0001 A1 UNO ALPHA\n0002 A2 DOS BETA");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, dynamic field list with same-named columns is refused, not misassigned", async () => {
+    const code = `
+DATA lv_fields TYPE string.
+lv_fields = |h~id, s~id|.
+SELECT (lv_fields) INTO (lv_id, lv_sid)
+  FROM ( zjhead AS h INNER JOIN zjsame AS s ON h~adrnr = s~id ).
+  WRITE / |{ lv_id } { lv_sid }|.
+ENDSELECT.`;
+    let message = "";
+    try {
+      await runAllDatabases(abap, sameFiles(code), () => {
+        // not reached
+      }, {snowflake: false, postgres: false});
+    } catch (error) {
+      message = String((error as Error).message);
+    }
+    expect(message).to.equal("SELECT INTO list: 1 columns for 2 targets");
+  });
+
+  it("SELECT loop, join, PACKAGE SIZE INTO TABLE", async () => {
+    const code = `
+TYPES: BEGIN OF ty_row,
+         id   TYPE zjhead-id,
+         city TYPE zjadr-city,
+       END OF ty_row.
+DATA lt_rows TYPE STANDARD TABLE OF ty_row WITH DEFAULT KEY.
+DATA ls_row TYPE ty_row.
+SELECT h~id a~city INTO TABLE lt_rows
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  PACKAGE SIZE 5
+  ORDER BY h~id.
+  WRITE / lines( lt_rows ).
+ENDSELECT.
+LOOP AT lt_rows INTO ls_row.
+  WRITE / |{ ls_row-id } { ls_row-city }|.
+ENDLOOP.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("3\n0001 OSLO\n0002 BERGEN\n0003 ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, FOR ALL ENTRIES INTO list", async () => {
+    const code = `
+DATA lt_drv TYPE STANDARD TABLE OF zjhead WITH DEFAULT KEY.
+DATA ls_drv TYPE zjhead.
+ls_drv-adrnr = 'A2'. APPEND ls_drv TO lt_drv.
+ls_drv-adrnr = 'A1'. APPEND ls_drv TO lt_drv.
+SELECT h~id a~city INTO (lv_id, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  FOR ALL ENTRIES IN lt_drv
+  WHERE h~adrnr = lt_drv-adrnr
+  ORDER BY h~id.
+  WRITE / |{ sy-dbcnt } { lv_id } { lv_city }|.
+ENDSELECT.
+WRITE / |{ sy-dbcnt } { sy-subrc }|.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0001 OSLO\n2 0002 BERGEN\n2 0");
     }, {snowflake: false});
   });
 

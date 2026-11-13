@@ -313,7 +313,9 @@ export class SQLCondTranspiler implements IExpressionTranspiler {
     const operator = children[1];
     const source = children[2];
     if (!(fieldName instanceof abaplint.Nodes.ExpressionNode)
-        || !(fieldName.get() instanceof abaplint.Expressions.SQLFieldName)
+        // a~field = itab-component, over a join or an alias, as well as field = itab-component
+        || !(fieldName.get() instanceof abaplint.Expressions.SQLFieldName
+          || fieldName.get() instanceof abaplint.Expressions.SQLAliasField)
         || !(operator instanceof abaplint.Nodes.ExpressionNode)
         || !(operator.get() instanceof abaplint.Expressions.SQLCompareOperator)
         || !(source instanceof abaplint.Nodes.ExpressionNode)
