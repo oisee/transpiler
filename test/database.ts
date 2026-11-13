@@ -101,6 +101,66 @@ const tabl_zdbw = `<?xml version="1.0" encoding="utf-8"?>
  </asx:abap>
 </abapGit>`;
 
+// two transparent tables for the SELECT loops over a join: a head with an
+// address number, and the address it points at
+function tablCharFields(name: string, fields: {name: string, length: number, key?: boolean}[]): string {
+  const dd03p = fields.map(f => `
+    <DD03P>
+     <FIELDNAME>${f.name}</FIELDNAME>${f.key ? `
+     <KEYFLAG>X</KEYFLAG>` : ""}
+     <INTTYPE>C</INTTYPE>
+     <INTLEN>${String(f.length * 2).padStart(6, "0")}</INTLEN>${f.key ? `
+     <NOTNULL>X</NOTNULL>` : ""}
+     <DATATYPE>CHAR</DATATYPE>
+     <LENG>${String(f.length).padStart(6, "0")}</LENG>
+    </DD03P>`).join("");
+  return `<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_TABL" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <DD02V>
+    <TABNAME>${name}</TABNAME>
+    <DDLANGUAGE>E</DDLANGUAGE>
+    <TABCLASS>TRANSP</TABCLASS>
+    <CONTFLAG>A</CONTFLAG>
+   </DD02V>
+   <DD03P_TABLE>${dd03p}
+   </DD03P_TABLE>
+  </asx:values>
+ </asx:abap>
+</abapGit>`;
+}
+
+const tabl_zjhead = tablCharFields("ZJHEAD", [
+  {name: "ID", length: 4, key: true},
+  {name: "NAME", length: 10},
+  {name: "ADRNR", length: 4}]);
+const tabl_zjadr = tablCharFields("ZJADR", [
+  {name: "ADRNR", length: 4, key: true},
+  {name: "CITY", length: 10}]);
+
+// four heads, three with an address; head 0004 points at no address and
+// is not in the inner join
+const joinSeed = `
+DATA ls_seed_h TYPE zjhead.
+DATA ls_seed_a TYPE zjadr.
+ls_seed_h-id = '0001'. ls_seed_h-name = 'ALPHA'. ls_seed_h-adrnr = 'A1'. INSERT zjhead FROM ls_seed_h.
+ls_seed_h-id = '0002'. ls_seed_h-name = 'BETA'.  ls_seed_h-adrnr = 'A2'. INSERT zjhead FROM ls_seed_h.
+ls_seed_h-id = '0003'. ls_seed_h-name = 'GAMMA'. ls_seed_h-adrnr = 'A3'. INSERT zjhead FROM ls_seed_h.
+ls_seed_h-id = '0004'. ls_seed_h-name = 'DELTA'. ls_seed_h-adrnr = 'A9'. INSERT zjhead FROM ls_seed_h.
+ls_seed_a-adrnr = 'A1'. ls_seed_a-city = 'OSLO'.   INSERT zjadr FROM ls_seed_a.
+ls_seed_a-adrnr = 'A2'. ls_seed_a-city = 'BERGEN'. INSERT zjadr FROM ls_seed_a.
+ls_seed_a-adrnr = 'A3'. ls_seed_a-city = 'ROME'.   INSERT zjadr FROM ls_seed_a.
+DATA lv_id TYPE zjhead-id.
+DATA lv_name TYPE zjhead-name.
+DATA lv_city TYPE zjadr-city.
+`;
+
+const joinFiles = (code: string) => [
+  {filename: "zfoobar.prog.abap", contents: joinSeed + code},
+  {filename: "zjhead.tabl.xml", contents: tabl_zjhead},
+  {filename: "zjadr.tabl.xml", contents: tabl_zjadr}];
+
 async function runAllDatabases(abap: ABAP,
                                files: IFile[],
                                check: () => any,
@@ -595,8 +655,7 @@ describe("Top level tests, Database", () => {
       {filename: "t100.tabl.xml", contents: tabl_t100xml},
       {filename: "zag_unit_test.msag.xml", contents: msag_zag_unit_test}];
     await runAllDatabases(abap, files, () => {
-// TODO, for now it only checks that it compiles to valid JS
-    // expect(abap.console.get()).to.equal("hello world\nblah");
+      expect(abap.console.getTrimmed()).to.equal("hello world\nblah");
     });
   });
 
@@ -614,9 +673,180 @@ ENDSELECT.`;
       {filename: "t100.tabl.xml", contents: tabl_t100xml},
       {filename: "zag_unit_test.msag.xml", contents: msag_zag_unit_test}];
     await runAllDatabases(abap, files, () => {
-// TODO, for now it only checks that it compiles to valid JS
-    // expect(abap.console.get()).to.equal("hello world\nblah");
+      expect(abap.console.getTrimmed()).to.equal("hello world\nblah");
     });
+  });
+
+  it("SELECT loop, field list, every target assigned per row", async () => {
+    const code = `
+    DATA lv_msgnr TYPE t100-msgnr.
+    DATA lv_text TYPE t100-text.
+    SELECT msgnr text FROM t100 INTO (lv_msgnr, lv_text) ORDER BY msgnr.
+      WRITE / |{ sy-dbcnt } { lv_msgnr } { lv_text }|.
+    ENDSELECT.
+    WRITE / |{ sy-dbcnt } { sy-subrc }|.`;
+    const files = [
+      {filename: "zfoobar.prog.abap", contents: code},
+      {filename: "t100.tabl.xml", contents: tabl_t100xml},
+      {filename: "zag_unit_test.msag.xml", contents: msag_zag_unit_test}];
+    await runAllDatabases(abap, files, () => {
+      expect(abap.console.getTrimmed()).to.equal("1 000 hello world\n2 123 blah\n2 0");
+    });
+  });
+
+  it("SELECT loop, join with aliases, INTO list of three", async () => {
+    const code = `
+SELECT h~id h~name a~city INTO (lv_id, lv_name, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr ).
+  WRITE / |{ lv_id } { lv_name } { lv_city }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed().split("\n").sort().join("\n")).to.equal(
+        "0001 ALPHA OSLO\n0002 BETA BERGEN\n0003 GAMMA ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, sy-dbcnt per row and the total after ENDSELECT", async () => {
+    const code = `
+SELECT h~id a~city INTO (lv_id, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY h~id.
+  WRITE / |{ sy-dbcnt } { lv_id } { lv_city }|.
+ENDSELECT.
+WRITE / |{ sy-dbcnt } { sy-subrc }|.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0001 OSLO\n2 0002 BERGEN\n3 0003 ROME\n3 0");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, paging by sy-dbcnt with UP TO, dynamic WHERE and ORDER BY", async () => {
+    const code = `
+DATA lv_where TYPE string.
+DATA lv_order TYPE string.
+DATA lv_top TYPE i.
+DATA lv_skip TYPE i.
+lv_where = |a~city <> 'NOWHERE'|.
+lv_order = |h~id DESCENDING|.
+lv_skip = 1.
+lv_top = 2.
+lv_top = lv_top + lv_skip.
+SELECT h~id h~name a~city INTO (lv_id, lv_name, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  UP TO lv_top ROWS
+  WHERE (lv_where)
+  ORDER BY (lv_order).
+  IF sy-dbcnt > lv_skip.
+    WRITE / |{ lv_id } { lv_name } { lv_city }|.
+  ENDIF.
+ENDSELECT.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("0002 BETA BERGEN\n0001 ALPHA OSLO");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, WHERE on both aliases and ORDER BY DESCENDING", async () => {
+    const code = `
+SELECT h~id h~name a~city INTO (lv_id, lv_name, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  WHERE h~name <> 'BETA' AND a~city <> 'NOWHERE'
+  ORDER BY h~id DESCENDING.
+  WRITE / |{ sy-dbcnt } { lv_id } { lv_name } { lv_city }|.
+ENDSELECT.
+WRITE / |{ sy-dbcnt } { sy-subrc }|.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0003 GAMMA ROME\n2 0001 ALPHA OSLO\n2 0");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, no row: body skipped, sy-subrc 4, sy-dbcnt 0", async () => {
+    const code = `
+SELECT h~id a~city INTO (lv_id, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  WHERE h~id = '9999' AND a~city = 'OSLO'.
+  WRITE / 'row'.
+ENDSELECT.
+WRITE / |{ sy-dbcnt } { sy-subrc }|.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("0 4");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, EXIT keeps the count of rows read", async () => {
+    const code = `
+SELECT h~id a~city INTO (lv_id, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY h~id.
+  IF sy-dbcnt = 2.
+    EXIT.
+  ENDIF.
+ENDSELECT.
+WRITE / |{ sy-dbcnt } { sy-subrc } { lv_id }|.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("2 0 0002");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, INTO structure", async () => {
+    const code = `
+DATA: BEGIN OF ls_row,
+        id   TYPE zjhead-id,
+        name TYPE zjhead-name,
+        city TYPE zjadr-city,
+      END OF ls_row.
+SELECT h~id h~name a~city INTO ls_row
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY h~id.
+  WRITE / |{ sy-dbcnt } { ls_row-id } { ls_row-name } { ls_row-city }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0001 ALPHA OSLO\n2 0002 BETA BERGEN\n3 0003 GAMMA ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, join, INTO CORRESPONDING FIELDS OF structure", async () => {
+    const code = `
+DATA: BEGIN OF ls_row,
+        id   TYPE zjhead-id,
+        city TYPE zjadr-city,
+      END OF ls_row.
+SELECT h~id a~city INTO CORRESPONDING FIELDS OF ls_row
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY h~id.
+  WRITE / |{ sy-dbcnt } { ls_row-id } { ls_row-city }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0001 OSLO\n2 0002 BERGEN\n3 0003 ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT INTO TABLE over the join", async () => {
+    const code = `
+TYPES: BEGIN OF ty_row,
+         id   TYPE zjhead-id,
+         city TYPE zjadr-city,
+       END OF ty_row.
+DATA lt_rows TYPE STANDARD TABLE OF ty_row WITH DEFAULT KEY.
+DATA ls_row TYPE ty_row.
+SELECT h~id a~city INTO TABLE lt_rows
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY h~id.
+WRITE / sy-dbcnt.
+LOOP AT lt_rows INTO ls_row.
+  WRITE / |{ ls_row-id } { ls_row-city }|.
+ENDLOOP.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("3\n0001 OSLO\n0002 BERGEN\n0003 ROME");
+    }, {snowflake: false});
+  });
+
+  it("SELECT loop, single table with alias, INTO list", async () => {
+    const code = `
+SELECT h~id h~name INTO (lv_id, lv_name) FROM zjhead AS h ORDER BY h~id.
+  WRITE / |{ sy-dbcnt } { lv_id } { lv_name }|.
+ENDSELECT.`;
+    await runAllDatabases(abap, joinFiles(code), () => {
+      expect(abap.console.getTrimmed()).to.equal("1 0001 ALPHA\n2 0002 BETA\n3 0003 GAMMA\n4 0004 DELTA");
+    }, {snowflake: false});
   });
 
   it("SELECT COUNT(*)", async () => {
