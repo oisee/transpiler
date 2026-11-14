@@ -3602,6 +3602,64 @@ ENDCLASS.`;
   });
 
 
+  it("test-cc-load-order", async () => {
+// a class constructor creates an instance of a global class sorted after it: that
+// class is loaded before the class constructor runs at load
+    const abuf = `
+    CLASS zcl_a_buffer DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gi_store TYPE REF TO zif_b_store.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS read RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_a_buffer IMPLEMENTATION.
+      METHOD class_constructor.
+        CREATE OBJECT gi_store TYPE zcl_b_store.
+      ENDMETHOD.
+      METHOD read.
+        result = gi_store->name( ).
+      ENDMETHOD.
+    ENDCLASS.`;
+    const bstore = `
+    CLASS zcl_b_store DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        INTERFACES zif_b_store.
+        ALIASES name FOR zif_b_store~name.
+    ENDCLASS.
+    CLASS zcl_b_store IMPLEMENTATION.
+      METHOD zif_b_store~name.
+        result = 'store'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const intf = `
+    INTERFACE zif_b_store PUBLIC.
+      METHODS name RETURNING VALUE(result) TYPE string.
+    ENDINTERFACE.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zcl_a_buffer=>read( ).
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_a_buffer.clas.abap", contents: abuf},
+      {filename: "zcl_a_buffer.clas.testclasses.abap", contents: tests},
+      {filename: "zcl_b_store.clas.abap", contents: bstore},
+      {filename: "zif_b_store.intf.abap", contents: intf},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n")[1]).to.equal("store");
+    // the harness happens to load zcl_b_store first; a build that loads by name
+    // does not, so the class module itself must import what its constructor creates
+    const mod = fs.readFileSync(outputFolder + path.sep + "zcl_a_buffer.clas.mjs", "utf-8");
+    expect(mod.indexOf(`await import("./zcl_b_store.clas.mjs")`)).to.be.greaterThan(-1);
+    expect(mod.indexOf(`await import("./zcl_b_store.clas.mjs")`)).to.be.lessThan(mod.indexOf("class zcl_a_buffer"));
+  });
+
   it("test-74", async () => {
 // an interface constant whose VALUE is another interface's constant; the referencing interface is loaded first
     const zifb = `

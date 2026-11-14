@@ -94,6 +94,15 @@ export class Requires {
         }
       }
 
+      // a class constructor runs when its module loads (class_implementation.ts), so
+      // a global class it names -- CREATE OBJECT ... TYPE x, NEW x( ), x=>m( ) -- must
+      // have loaded before; a module sorted after it was not there yet
+      if (obj.getType() === "CLAS" && filename === obj.getMainABAPFile()?.getFilename()) {
+        for (const req of this.classConstructorTargets(obj)) {
+          add(req);
+        }
+      }
+
       // include global super classes for local class definitions
       for (const f of obj.getSequencedFiles()) {
         for (const c of f.getInfo().listClassDefinitions()) {
@@ -114,6 +123,40 @@ export class Requires {
       }
     }
 
+    return ret;
+  }
+
+  /** the global classes the CLASS_CONSTRUCTOR implementations of a class pool name by
+   * class name: loaded before the constructor runs at load. The pool itself is skipped. */
+  private classConstructorTargets(obj: abaplint.ABAPObject): IRequire[] {
+    const ret: IRequire[] = [];
+    for (const file of obj.getABAPFiles()) {
+      let inside = false;
+      for (const statement of file.getStatements()) {
+        const s = statement.get();
+        if (s instanceof abaplint.Statements.MethodImplementation) {
+          inside = statement.findDirectExpression(abaplint.Expressions.MethodName)?.concatTokens().toUpperCase() === "CLASS_CONSTRUCTOR";
+          continue;
+        } else if (s instanceof abaplint.Statements.EndMethod) {
+          inside = false;
+          continue;
+        } else if (inside === false) {
+          continue;
+        }
+        for (const e of [...statement.findAllExpressions(abaplint.Expressions.ClassName),
+            ...statement.findAllExpressions(abaplint.Expressions.TypeNameOrInfer)]) {
+          const name = e.concatTokens().toUpperCase();
+          if (name === obj.getName().toUpperCase()) {
+            continue;
+          }
+          const found = this.reg.getObject("CLAS", name);
+          const main = found instanceof abaplint.ABAPObject ? found.getMainABAPFile()?.getFilename() : undefined;
+          if (main && ret.some(r => r.filename === main) === false) {
+            ret.push({filename: main, name: undefined});
+          }
+        }
+      }
+    }
     return ret;
   }
 
