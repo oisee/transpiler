@@ -42,6 +42,8 @@ export function expandDynamic(input: DynamicCondition, evaluate: Evaluate) {
   return out;
 }
 
+// An unterminated backtick literal goes on as an unterminated single-quoted
+// one: invalid either way, and the database refuses it either way.
 function backtickToSql(literal: string): string {
   const closed = literal.length > 1 && literal.endsWith("`");
   const inner = literal.slice(1, closed ? -1 : undefined).replace(/``/g, "`");
