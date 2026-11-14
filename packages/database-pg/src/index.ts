@@ -1,4 +1,5 @@
 import {DB} from "@abaplint/runtime";
+import {outsideLiterals} from "./sql_literals";
 import * as pg from "pg";
 import Cursor from "pg-cursor";
 
@@ -265,16 +266,21 @@ export class PostgresDatabaseClient implements DB.DatabaseClient {
 
     let res: undefined | pg.QueryResult<any> = undefined;
 
-    options.select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
-    if (options.primaryKey) {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.join(", "));
-    } else {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, "");
-    }
-    options.select = options.select.replace(/ ASCENDING/ig, " ASC");
-    options.select = options.select.replace(/ DESCENDING/ig, " DESC");
-    options.select = options.select.replace(/~/g, ".");
-    options.select = options.select.replace(/ LIMIT 0/g, "");
+    // the rewrites read code only: a value such as 'x UP TO 9 ROWS' or 'a~b'
+    // is data and reaches the database as it was written (sql_literals.ts)
+    options.select = outsideLiterals(options.select, (select) => {
+      select = select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+      if (options.primaryKey) {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.join(", "));
+      } else {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, "");
+      }
+      select = select.replace(/ ASCENDING/ig, " ASC");
+      select = select.replace(/ DESCENDING/ig, " DESC");
+      select = select.replace(/~/g, ".");
+      select = select.replace(/ LIMIT 0/g, "");
+      return select;
+    });
 
     if (this.trace === true) {
       console.log(options.select);
@@ -318,7 +324,7 @@ export class PostgresDatabaseClient implements DB.DatabaseClient {
       await this.connect();
     }
 
-    const select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+    const select = outsideLiterals(options.select, (s) => s.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1"));
 
     // A pg-cursor blocks its connection until it is closed. Materialize cursors
     // opened inside a transaction so they both see the LUW's uncommitted changes

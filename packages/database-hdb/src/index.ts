@@ -1,4 +1,5 @@
 import {DB} from "@abaplint/runtime";
+import {outsideLiterals, splitLiterals} from "./sql_literals";
 import * as hdb from "hdb";
 
 export type ConnectionSettings = {
@@ -15,7 +16,9 @@ export type ConnectionSettings = {
 /** ABAP pads its CHAR literals to the DDIC length; HANA compares the padding.
  *  Trim inside single quotes only, and leave an escaped quote ('') alone. */
 function trimLiterals(sql: string): string {
-  return sql.replace(/'((?:[^']|'')*)'/g, (_m, inner: string) => "'" + inner.replace(/ +$/, "") + "'");
+  // a scan, not /'((?:[^']|'')*)'/, which backtracks per character of a value
+  return splitLiterals(sql).map(({literal, text}) =>
+    literal && text.length > 1 && text.endsWith("'") ? text.slice(0, -1).replace(/ +$/, "") + "'" : text).join("");
 }
 
 /** Every identifier this client sends goes to HANA quoted in UPPER case.
@@ -250,12 +253,16 @@ export class HanaDatabaseClient implements DB.DatabaseClient {
 
   /** ABAP SQL as the runtime emits it, into what HANA takes */
   private rewrite(select: string, primaryKey?: string[]): string {
-    let s = select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
-    s = primaryKey
-      ? s.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + primaryKey.join(", "))
-      : s.replace(/ ORDER BY PRIMARY KEY/i, "");
-    s = s.replace(/ ASCENDING/ig, " ASC").replace(/ DESCENDING/ig, " DESC")
-      .replace(/~/g, ".").replace(/ LIMIT 0/g, "");
+    // the rewrites read code only: a value such as 'x UP TO 9 ROWS' or 'a~b'
+    // is data and reaches the database as it was written (sql_literals.ts)
+    const s = outsideLiterals(select, (code) => {
+      code = code.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+      code = primaryKey
+        ? code.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + primaryKey.join(", "))
+        : code.replace(/ ORDER BY PRIMARY KEY/i, "");
+      return code.replace(/ ASCENDING/ig, " ASC").replace(/ DESCENDING/ig, " DESC")
+        .replace(/~/g, ".").replace(/ LIMIT 0/g, "");
+    });
     return trimLiterals(s);
   }
 
