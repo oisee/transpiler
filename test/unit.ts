@@ -4829,4 +4829,51 @@ ENDCLASS.`;
     expect(hosted.stderr).to.not.contain("wait-cycle");
   });
 
+  it("test-class-constant-chain", async () => {
+// a class constant from an interface constant whose value is another interface's constant; the
+// interface in between sorts before the one with the literal, where abaplint has no value for it
+    const zclk = `
+    CLASS zcl_k DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CONSTANTS y TYPE string VALUE zif_a=>x2.
+        CONSTANTS n TYPE n LENGTH 4 VALUE zif_a=>n2.
+    ENDCLASS.
+    CLASS zcl_k IMPLEMENTATION.
+    ENDCLASS.`;
+    const zifa = `
+    INTERFACE zif_a PUBLIC.
+      CONSTANTS x2 TYPE string VALUE zif_b=>x1.
+      CONSTANTS n2 TYPE i VALUE zif_b=>n1.
+    ENDINTERFACE.`;
+    const zifb = `
+    INTERFACE zif_b PUBLIC.
+      CONSTANTS x1 TYPE string VALUE 'u'.
+      CONSTANTS n1 TYPE i VALUE 7.
+    ENDINTERFACE.`;
+    const clas = `
+    CLASS zcl_consts DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_consts IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / |{ zcl_k=>y }{ zcl_k=>n }|.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_k.clas.abap", contents: zclk},
+      {filename: "zif_a.intf.abap", contents: zifa},
+      {filename: "zif_b.intf.abap", contents: zifb},
+      {filename: "zcl_consts.clas.abap", contents: clas},
+      {filename: "zcl_consts.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n")[1]).to.equal("u0007");
+  });
+
 });

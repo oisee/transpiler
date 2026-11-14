@@ -85,6 +85,12 @@ export function chainOf(statement: abaplint.Nodes.StatementNode | undefined): ab
     ? chain : undefined;
 }
 
+/** the `other=>constant` chain the CONSTANTS statement declaring `identifier` in `obj` names as
+ * its VALUE, if it names one */
+export function declaredChain(obj: abaplint.ABAPObject, identifier: abaplint.TypedIdentifier): abaplint.Nodes.ExpressionNode | undefined {
+  return chainOf(findStatement(obj, identifier));
+}
+
 function findConstant(reg: abaplint.IRegistry, obj: abaplint.ABAPObject, attribute: string): abaplint.TypedIdentifier | undefined {
   const found: abaplint.TypedIdentifier[] = [];
   const walk = (n: abaplint.ISpaghettiScopeNode) => {

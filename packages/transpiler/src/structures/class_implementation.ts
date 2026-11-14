@@ -3,7 +3,9 @@ import {IStructureTranspiler} from "./_structure_transpiler";
 import {Traversal} from "../traversal";
 import {Chunk} from "../chunk";
 import {ClassImplementationTranspiler as ClassImplementationStatementTranspiler} from "../statements/class_implementation";
+import {constantSource, declaredChain} from "../constant_value";
 import {CctorPlan, releaseConstructors, waitingConstructors} from "../cctor_plan";
+import {ConstantTranspiler} from "../expressions";
 
 const DEFAULT_CONSTRUCTOR = "async constructor_(INPUT) {\nif (super.constructor_) { await super.constructor_(INPUT); }\nreturn this;\n}\n";
 
@@ -250,6 +252,21 @@ export class ClassImplementationTranspiler implements IStructureTranspiler {
       const name = Traversal.escapeNamespace(clasName) + "." + Traversal.escapeNamespace(attr.prefix) + Traversal.escapeNamespace(attr.identifier.getName().toLowerCase());
       ret += name + " = " + traversal.toType(attr.identifier.getType()) + ";\n";
 
+      // a constant of the class whose VALUE is another object's constant, which abaplint leaves
+      // without a value when the chain runs further than it follows: the chain is followed like
+      // an interface's (constant_value.ts) and written when it ends in an interface literal.
+      // Anything else stays as it was
+      const obj = traversal.getCurrentObject();
+      const chain = attr.prefix === "" && attr.identifier.getValue() === undefined
+        && attr.identifier instanceof abaplint.Types.ClassConstant
+        ? declaredChain(obj, attr.identifier) : undefined;
+      if (chain !== undefined) {
+        const source = constantSource(traversal.reg, chain);
+        if (source.kind === "literal") {
+          ret += name + ".set(" + ConstantTranspiler.escape(ConstantTranspiler.trimTextFieldLiteral(source.value)) + ");\n";
+          continue;
+        }
+      }
       ret += traversal.setValues(attr.identifier, name);
     }
 

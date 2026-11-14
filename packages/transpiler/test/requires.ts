@@ -328,4 +328,85 @@ ENDCLASS.`}];
     expect(base.requires.map(r => r.filename)).to.not.include("zcl_cc_sub.clas.abap");
   });
 
+  it("CLAS constant from an interface constant two interfaces away: a literal, no require", async () => {
+    const files = [
+      {filename: "zcl_k.clas.abap", contents: `CLASS zcl_k DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CONSTANTS y TYPE string VALUE zif_a=>x2.
+ENDCLASS.
+CLASS zcl_k IMPLEMENTATION.
+ENDCLASS.`},
+      {filename: "zif_a.intf.abap", contents: `INTERFACE zif_a PUBLIC.
+  CONSTANTS x2 TYPE string VALUE zif_b=>x1.
+ENDINTERFACE.`},
+      {filename: "zif_b.intf.abap", contents: `INTERFACE zif_b PUBLIC.
+  CONSTANTS x1 TYPE string VALUE 'u'.
+ENDINTERFACE.`}];
+    const output = await runFiles(files);
+    const k = output.find(o => o.filename === "zcl_k.clas.mjs")!;
+    expect(k.requires).to.deep.equal([]);
+    expect(k.chunk.getCode()).to.contain("zcl_k.y.set('u');");
+  });
+
+  it("CLAS constant of a local class declared in another file than its implementation: its own statement", async () => {
+    const files = [
+      {filename: "zcl_l.clas.abap", contents: `CLASS zcl_l DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_l IMPLEMENTATION.
+ENDCLASS.`},
+      {filename: "zcl_l.clas.locals_def.abap", contents: `CLASS lcl DEFINITION.
+  PUBLIC SECTION.
+    CONSTANTS y TYPE string VALUE zif_a=>x2.
+ENDCLASS.`},
+      // another constant at the position the declaration has in its own file
+      {filename: "zcl_l.clas.locals_imp.abap", contents: `CLASS lcl_other DEFINITION.
+  PUBLIC SECTION.
+    CONSTANTS z TYPE string VALUE zif_a=>d2.
+ENDCLASS.
+CLASS lcl_other IMPLEMENTATION.
+ENDCLASS.
+CLASS lcl IMPLEMENTATION.
+ENDCLASS.`},
+      {filename: "zif_a.intf.abap", contents: `INTERFACE zif_a PUBLIC.
+  CONSTANTS x2 TYPE string VALUE zif_b=>x1.
+  CONSTANTS d2 TYPE string VALUE zif_b=>d1.
+ENDINTERFACE.`},
+      {filename: "zif_b.intf.abap", contents: `INTERFACE zif_b PUBLIC.
+  CONSTANTS x1 TYPE string VALUE 'u'.
+  CONSTANTS d1 TYPE string VALUE 'd'.
+ENDINTERFACE.`}];
+    const output = await runFiles(files);
+    const code = output.find(o => o.filename === "zcl_l.clas.locals.mjs")!.chunk.getCode();
+    expect(code).to.contain("lcl.y.set('u');");
+    expect(code).to.contain("lcl_other.z.set('d');");
+  });
+
+  it("CLAS constant, the chain ends in a class constant or comes back to the class: nothing written, as before", async () => {
+    const zclk = {filename: "zcl_k.clas.abap", contents: `CLASS zcl_k DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CONSTANTS y TYPE string VALUE zif_a=>x2.
+ENDCLASS.
+CLASS zcl_k IMPLEMENTATION.
+ENDCLASS.`};
+    const zifa = {filename: "zif_a.intf.abap", contents: `INTERFACE zif_a PUBLIC.
+  CONSTANTS x2 TYPE string VALUE zif_b=>x1.
+ENDINTERFACE.`};
+    for (const end of ["zcl_o=>c", "zcl_k=>y"]) {
+      const files = [zclk, zifa,
+        {filename: "zif_b.intf.abap", contents: `INTERFACE zif_b PUBLIC.
+  CONSTANTS x1 TYPE string VALUE ${end}.
+ENDINTERFACE.`},
+        {filename: "zcl_o.clas.abap", contents: `CLASS zcl_o DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CONSTANTS c TYPE string VALUE 'v'.
+ENDCLASS.
+CLASS zcl_o IMPLEMENTATION.
+ENDCLASS.`}];
+      const output = await runFiles(files);
+      const k = output.find(o => o.filename === "zcl_k.clas.mjs")!;
+      expect(k.requires).to.deep.equal([]);
+      expect(k.chunk.getCode()).to.not.contain("zcl_k.y.set(");
+    }
+  });
+
 });
