@@ -3,6 +3,7 @@ import {IStructureTranspiler} from "./_structure_transpiler";
 import {Traversal} from "../traversal";
 import {Chunk} from "../chunk";
 import {chainOf, constantSource} from "../constant_value";
+import {CctorPlan, releaseConstructors, waitingConstructors} from "../cctor_plan";
 import {ConstantTranspiler} from "../expressions";
 
 export class ClassImplementationTranspiler implements IStructureTranspiler {
@@ -277,14 +278,23 @@ export class ClassImplementationTranspiler implements IStructureTranspiler {
 // gather call of all class constructors together for a global class, also local classes
 // as they might use the global class, except for local testclass constructors
       if (cdef.isGlobal() === true) {
+        let calls = "";
         for (const f of traversal.getCurrentObject().getABAPFiles()) {
           for (const def of f.getInfo().listClassDefinitions()) {
             if (def.isForTesting === true) {
               continue;
             } else if (def.methods.some(m => m.name.toLowerCase() === "class_constructor")) {
-              ret += "await " + traversal.lookupClassOrInterface(def.name, node.getFirstToken()) + ".class_constructor();\n";
+              calls += "await " + traversal.lookupClassOrInterface(def.name, node.getFirstToken()) + ".class_constructor();\n";
             }
           }
+        }
+        // a class the constructors name whose requirement would close an import cycle: they
+        // wait for it, and a module such constructors wait for releases them (cctor_plan.ts)
+        const plan = CctorPlan.of(traversal.reg);
+        const waiting = plan.waitingFor(cdef.getName());
+        ret += waiting.length > 0 && calls !== "" ? waitingConstructors(waiting, calls) : calls;
+        if (plan.releases(cdef.getName())) {
+          ret += releaseConstructors();
         }
       }
       if (cdef.isGlobal() === false && cdef.isForTesting() === true && cdef.getMethodDefinitions().getByName("class_constructor")) {

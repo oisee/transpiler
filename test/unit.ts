@@ -4074,4 +4074,190 @@ ENDCLASS.`;
     expect(message).to.match(/constant chain .*ZIF_X=>C.*ZIF_Y=>D.*never reaches a value/i);
   });
 
+
+  it("test-84", async () => {
+// two class constructors naming each other's classes: no import cycle, both run once both classes exist
+    const cca = `
+    CLASS zcl_cc_a DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gv TYPE string.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_a IMPLEMENTATION.
+      METHOD class_constructor.
+        gv = zcl_cc_b=>hello( ).
+      ENDMETHOD.
+      METHOD hello.
+        result = 'zcl_cc_a'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const ccb = `
+    CLASS zcl_cc_b DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gv TYPE string.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_b IMPLEMENTATION.
+      METHOD class_constructor.
+        gv = zcl_cc_a=>hello( ).
+      ENDMETHOD.
+      METHOD hello.
+        result = 'zcl_cc_b'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const runner = `
+    CLASS zcl_cc_run DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_cc_run IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zcl_cc_a=>gv.
+        WRITE / zcl_cc_b=>gv.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_a.clas.abap", contents: cca},
+      {filename: "zcl_cc_b.clas.abap", contents: ccb},
+      {filename: "zcl_cc_run.clas.abap", contents: runner},
+      {filename: "zcl_cc_run.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 3)).to.deep.equal(["zcl_cc_b", "zcl_cc_a"]);
+  });
+
+  it("test-85", async () => {
+// a class constructor creating its own subclass, which requires it as its superclass: no import cycle
+    const ccbase = `
+    CLASS zcl_cc_base DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA go_default TYPE REF TO zcl_cc_base.
+        CLASS-METHODS class_constructor.
+        METHODS name RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_base IMPLEMENTATION.
+      METHOD class_constructor.
+        CREATE OBJECT go_default TYPE zcl_cc_sub.
+      ENDMETHOD.
+      METHOD name.
+        result = 'base'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const ccsub = `
+    CLASS zcl_cc_sub DEFINITION PUBLIC INHERITING FROM zcl_cc_base.
+      PUBLIC SECTION.
+        METHODS name REDEFINITION.
+    ENDCLASS.
+    CLASS zcl_cc_sub IMPLEMENTATION.
+      METHOD name.
+        result = 'sub'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const runner = `
+    CLASS zcl_cc_run DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_cc_run IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zcl_cc_base=>go_default->name( ).
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_base.clas.abap", contents: ccbase},
+      {filename: "zcl_cc_sub.clas.abap", contents: ccsub},
+      {filename: "zcl_cc_run.clas.abap", contents: runner},
+      {filename: "zcl_cc_run.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 2)).to.deep.equal(["sub"]);
+  });
+
+  it("test-86", async () => {
+// a ring of three class constructors, each naming the next class
+    const r1 = `
+    CLASS zcl_cc_r1 DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gv TYPE string.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_r1 IMPLEMENTATION.
+      METHOD class_constructor.
+        gv = zcl_cc_r2=>hello( ).
+      ENDMETHOD.
+      METHOD hello.
+        result = 'zcl_cc_r1'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const r2 = `
+    CLASS zcl_cc_r2 DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gv TYPE string.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_r2 IMPLEMENTATION.
+      METHOD class_constructor.
+        gv = zcl_cc_r3=>hello( ).
+      ENDMETHOD.
+      METHOD hello.
+        result = 'zcl_cc_r2'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const r3 = `
+    CLASS zcl_cc_r3 DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CLASS-DATA gv TYPE string.
+        CLASS-METHODS class_constructor.
+        CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+    ENDCLASS.
+    CLASS zcl_cc_r3 IMPLEMENTATION.
+      METHOD class_constructor.
+        gv = zcl_cc_r1=>hello( ).
+      ENDMETHOD.
+      METHOD hello.
+        result = 'zcl_cc_r3'.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const runner = `
+    CLASS zcl_cc_run DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_cc_run IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zcl_cc_r1=>gv.
+        WRITE / zcl_cc_r2=>gv.
+        WRITE / zcl_cc_r3=>gv.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_r1.clas.abap", contents: r1},
+      {filename: "zcl_cc_r2.clas.abap", contents: r2},
+      {filename: "zcl_cc_r3.clas.abap", contents: r3},
+      {filename: "zcl_cc_run.clas.abap", contents: runner},
+      {filename: "zcl_cc_run.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 4)).to.deep.equal(["zcl_cc_r2", "zcl_cc_r3", "zcl_cc_r1"]);
+  });
+
 });

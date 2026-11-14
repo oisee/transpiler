@@ -20,6 +20,7 @@ import {HandleOA2P} from "./handlers/handle_oa2p";
 import {HandleFUGR} from "./handlers/handle_fugr";
 import {Initialization} from "./initialization";
 import {OutputLayout, OutputFolders} from "./output_layout";
+import {CctorPlan} from "./cctor_plan";
 
 export {OutputLayout, OutputFolders, importPath} from "./output_layout";
 
@@ -54,6 +55,8 @@ export class Transpiler {
     // dirty registries. Parsing before that would be wasted because setConfig()
     // marks every registry object dirty again.
     this.validate(reg);
+    // the class constructors' load order is decided over this run's registry
+    CctorPlan.forget(reg);
     const layout = new OutputLayout(reg, folders);
 
     const dbSetup = new DatabaseSetup(reg).run(this.options);
