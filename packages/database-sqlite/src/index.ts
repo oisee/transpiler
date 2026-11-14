@@ -1,5 +1,6 @@
 import initSqlJs, {Database, QueryExecResult, Statement, SqlValue, SqlJsConfig} from "sql.js";
 import {ABAP, DB} from "@abaplint/runtime";
+import {outsideLiterals} from "./sql_literals";
 
 declare const abap: ABAP;
 
@@ -169,19 +170,24 @@ export class SQLiteDatabaseClient implements DB.DatabaseClient {
   public async select(options: DB.SelectDatabaseOptions) {
     let res: undefined | QueryExecResult[] = undefined;
 
-    options.select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
-    if (options.primaryKey) {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.join(", "));
-    } else {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, "");
-    }
-    options.select = options.select.replace(/ ASCENDING/ig, " ASC");
-    options.select = options.select.replace(/ DESCENDING/ig, " DESC");
-    options.select = options.select.replace(/~/g, ".");
-    options.select = options.select.replace(/ LIMIT 0/g, ""); // hack, todo
-    // SQLite has no LEFT()/RIGHT() functions, translate to substr()
-    options.select = options.select.replace(/\bLEFT\s*\(\s*(.+?)\s*,\s*(\d+)\s*\)/ig, "substr($1, 1, $2)");
-    options.select = options.select.replace(/\bRIGHT\s*\(\s*(.+?)\s*,\s*(\d+)\s*\)/ig, "substr($1, -$2)");
+    // the rewrites read code only: a value such as 'x UP TO 9 ROWS' or 'a~b'
+    // is data and reaches the database as it was written (sql_literals.ts)
+    options.select = outsideLiterals(options.select, (select) => {
+      select = select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+      if (options.primaryKey) {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.join(", "));
+      } else {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, "");
+      }
+      select = select.replace(/ ASCENDING/ig, " ASC");
+      select = select.replace(/ DESCENDING/ig, " DESC");
+      select = select.replace(/~/g, ".");
+      select = select.replace(/ LIMIT 0/g, ""); // hack, todo
+      // SQLite has no LEFT()/RIGHT() functions, translate to substr()
+      select = select.replace(/\bLEFT\s*\(\s*(.+?)\s*,\s*(\d+)\s*\)/ig, "substr($1, 1, $2)");
+      select = select.replace(/\bRIGHT\s*\(\s*(.+?)\s*,\s*(\d+)\s*\)/ig, "substr($1, -$2)");
+      return select;
+    });
 
     if (this.trace === true) {
       console.log(options.select);
@@ -222,7 +228,7 @@ export class SQLiteDatabaseClient implements DB.DatabaseClient {
   }
 
   public async openCursor(options: DB.SelectDatabaseOptions): Promise<DB.DatabaseCursorCallbacks> {
-    const select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+    const select = outsideLiterals(options.select, (s) => s.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1"));
     const statement = this.sqlite!.prepare(select, null);
     return {
       fetchNextCursor: (packageSize: number) => this.fetchNextCursor.bind(this)(packageSize, statement),

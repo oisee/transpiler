@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-expressions */
 import {DB} from "@abaplint/runtime";
+import {outsideLiterals} from "./sql_literals";
 import * as snowflake from "snowflake-sdk";
 
 export class SnowflakeDatabaseClient implements DB.DatabaseClient {
@@ -206,15 +207,20 @@ export class SnowflakeDatabaseClient implements DB.DatabaseClient {
   }
 
   public async select(options: DB.SelectDatabaseOptions): Promise<DB.SelectDatabaseResult> {
-    options.select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
-    if (options.primaryKey) {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.map(e => `"${e}"`).join(", "));
-    } else {
-      options.select = options.select.replace(/ ORDER BY PRIMARY KEY/i, "");
-    }
-    options.select = options.select.replace(/ ASCENDING/ig, " ASC");
-    options.select = options.select.replace(/ DESCENDING/ig, " DESC");
-    options.select = options.select.replace(/~/g, ".");
+    // the rewrites read code only: a value such as 'x UP TO 9 ROWS' or 'a~b'
+    // is data and reaches the database as it was written (sql_literals.ts)
+    options.select = outsideLiterals(options.select, (select) => {
+      select = select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+      if (options.primaryKey) {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, " ORDER BY " + options.primaryKey.map(e => `"${e}"`).join(", "));
+      } else {
+        select = select.replace(/ ORDER BY PRIMARY KEY/i, "");
+      }
+      select = select.replace(/ ASCENDING/ig, " ASC");
+      select = select.replace(/ DESCENDING/ig, " DESC");
+      select = select.replace(/~/g, ".");
+      return select;
+    });
 
     if (this.trace === true) {
       console.log(options.select);
@@ -240,7 +246,7 @@ export class SnowflakeDatabaseClient implements DB.DatabaseClient {
   public async openCursor(options: DB.SelectDatabaseOptions): Promise<DB.DatabaseCursorCallbacks> {
     const outer = this;
     const counter = {counter: 0};
-    const select = options.select.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1");
+    const select = outsideLiterals(options.select, (s) => s.replace(/ UP TO (\d+) ROWS(.*)/i, "$2 LIMIT $1"));
 
     return new Promise((resolve, reject) => {
       this.connection.execute({

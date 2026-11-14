@@ -4144,4 +4144,133 @@ WRITE lines( <tab> ).`;
     });
   });
 
+
+  describe("literals in a dynamic WHERE are data", () => {
+    const t100 = {filename: "t100.tabl.xml", contents: tabl_t100xml};
+    const cxroot = {filename: "cx_root.clas.abap", contents: `CLASS cx_root DEFINITION PUBLIC.
+ENDCLASS.
+CLASS cx_root IMPLEMENTATION.
+ENDCLASS.`};
+    const cxsem = {filename: "cx_sy_dynamic_osql_semantics.clas.abap", contents: `CLASS cx_sy_dynamic_osql_semantics DEFINITION PUBLIC INHERITING FROM cx_root.
+ENDCLASS.
+CLASS cx_sy_dynamic_osql_semantics IMPLEMENTATION.
+ENDCLASS.`};
+    const output = () => abap.console.get().split("\n").map(l => l.trimEnd()).join("\n");
+    const quoted = (v: string) => v.replace(/'/g, "''");
+    // every value a rewrite of the statement text used to change, and next to
+    // it what the rewrite made of it, so a rewrite that still reads the value
+    // finds the wrong row instead of none
+    const values = [
+      "a~b", "a.b",
+      "A EQ B", "A = B",
+      "x DESCENDING", "x DESC",
+      "x UP TO 9 ROWS", "x",
+      "x LIMIT 0",
+      "q <one> r",
+      "O'Hara",
+      "a`b",
+      "--x",
+      "a;b",
+    ];
+    const rows = `
+    DATA ls_row TYPE t100.
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    DATA lv_where TYPE string.
+    ls_row-sprsl = 'E'.
+    ls_row-text = 'row'.` + values.map((v, i) => `
+    ls_row-arbgb = '${quoted(v)}'.
+    ls_row-msgnr = '${String(i + 1).padStart(3, "0")}'.
+    INSERT t100 FROM ls_row.`).join("");
+    const found = `
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where) ORDER BY msgnr.
+    WRITE / lines( lt_result ).
+    LOOP AT lt_result INTO ls_row.
+      WRITE / ls_row-arbgb.
+    ENDLOOP.`;
+
+    it("each value finds exactly its own row", async () => {
+      const asked = ["a~b", "A EQ B", "x DESCENDING", "x UP TO 9 ROWS", "x LIMIT 0", "q <one> r",
+        "O'Hara", "a`b", "--x", "a;b"];
+      // the ABAP literal holding the condition doubles the quotes of the SQL literal again
+      const code = rows + `
+    DATA lv_val TYPE t100-arbgb.
+    FIELD-SYMBOLS <one> TYPE t100-arbgb.
+    lv_val = 'OR 1 = 1 OR arbgb ='.
+    ASSIGN lv_val TO <one>.` + asked.map(v => `
+    lv_where = 'arbgb = ''${quoted(quoted(v))}'''.` + found).join("");
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal(asked.map(v => "1\n" + v).join("\n"));
+      }, {snowflake: false});
+    });
+
+    it("EQ in the code is still =, a backtick literal is a value", async () => {
+      const code = rows + `
+    lv_where = 'arbgb EQ ''A EQ B'' OR arbgb EQ \`a~b\` OR arbgb = \`a\`\`b\`'.` + found;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("3\na~b\nA EQ B\na`b");
+      }, {snowflake: false});
+    });
+
+    it("UP TO n ROWS in a value adds no LIMIT", async () => {
+      const code = rows + `
+    lv_where = 'arbgb = ''x UP TO 1 ROWS'' OR arbgb <> ''zz'''.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).
+    SELECT * FROM t100 INTO TABLE lt_result WHERE arbgb = 'x UP TO 1 ROWS' OR arbgb <> 'zz'.
+    WRITE / lines( lt_result ).`;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal(`${values.length}\n${values.length}`);
+      }, {snowflake: false});
+    });
+
+    it("an unassigned field symbol in the code is CX_SY_DYNAMIC_OSQL_SEMANTICS", async () => {
+      const code = rows + `
+    FIELD-SYMBOLS <none> TYPE t100.
+    DATA lx TYPE REF TO cx_sy_dynamic_osql_semantics.
+    ls_row-arbgb = 'q <none> r'.
+    ls_row-msgnr = '099'.
+    INSERT t100 FROM ls_row.
+    lv_where = 'arbgb = ''q <none> r'''.` + found + `
+    lv_where = 'arbgb = <none>'.
+    TRY.
+        SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+        WRITE / 'not caught'.
+      CATCH cx_sy_dynamic_osql_semantics INTO lx.
+        WRITE / 'caught'.
+    ENDTRY.
+    lv_where = 'arbgb = <none>-arbgb'.
+    TRY.
+        SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+        WRITE / 'not caught'.
+      CATCH cx_sy_dynamic_osql_semantics INTO lx.
+        WRITE / 'caught'.
+    ENDTRY.`;
+      // runAllDatabases runs the program's own object only, so the global
+      // classes are compiled for the syntax check and stood in for here
+      class CxRoot extends Error {}
+      class CxSemantics extends CxRoot {}
+      abap.Classes["CX_ROOT"] = CxRoot;
+      abap.Classes["CX_SY_DYNAMIC_OSQL_SEMANTICS"] = CxSemantics;
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100, cxroot, cxsem], () => {
+        expect(output()).to.equal("1\nq <none> r\ncaught\ncaught");
+      }, {snowflake: false});
+    });
+
+    it("a long literal is read in linear time", async () => {
+      const code = `
+    DATA lt_result TYPE STANDARD TABLE OF t100.
+    DATA lv_where TYPE string.
+    DATA lv_long TYPE string.
+    lv_long = repeat( val = 'a' occ = 200000 ).
+    lv_where = |arbgb = '{ lv_long }'|.
+    SELECT * FROM t100 INTO TABLE lt_result WHERE (lv_where).
+    WRITE / lines( lt_result ).`;
+      const start = Date.now();
+      await runAllDatabases(abap, [{filename: "zfoobar.prog.abap", contents: code}, t100], () => {
+        expect(output()).to.equal("0");
+      }, {snowflake: false, postgres: false});
+      expect(Date.now() - start).to.be.below(5000);
+    });
+  });
+
 });
