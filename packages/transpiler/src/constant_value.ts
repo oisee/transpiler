@@ -10,14 +10,18 @@ import * as abaplint from "@abaplint/core";
  *   analysis knows. The value is read at load from that member, and the module requires its
  *   object first. A class module never imports an interface, so an interface's edge to a class
  *   cannot close a cycle;
- * - void: the referenced object is not in the registry; the caller keeps its field chain. */
+ * - void: the referenced object is not in the registry; the caller keeps its field chain.
+ * A component chain (`zif_a=>gs-comp`) folds to, or reads, the component, never the structure.
+ * A chain that comes back to a constant it already passed never reaches a value (illegal ABAP,
+ * which abaplint accepts): it is refused with the chain named, since reading it at load would
+ * make the interfaces await each other and the generation would never load. */
 export type ConstantSource =
   {kind: "literal", value: string} |
-  {kind: "member", object: abaplint.ABAPObject, attribute: string} |
+  {kind: "member", object: abaplint.ABAPObject, attribute: string, components: string[]} |
   {kind: "void"};
 
 export function constantSource(reg: abaplint.IRegistry, chain: abaplint.Nodes.ExpressionNode,
-                               seen = new Set<string>()): ConstantSource {
+                               path: string[] = []): ConstantSource {
   const match = /^([^\s=]+)\s*=>\s*([^\s-]+)(?:\s*-\s*(.+))?$/.exec(chain.concatTokens());
   if (match === null) {
     return {kind: "void"};
@@ -27,33 +31,46 @@ export function constantSource(reg: abaplint.IRegistry, chain: abaplint.Nodes.Ex
   if (attribute.includes("~")) {
     [objectName, attribute] = attribute.split("~");
   }
-  const components = match[3]?.split(/\s*-\s*/) ?? [];
+  const components = match[3]?.split(/\s*-\s*/).map(c => c.toLowerCase()) ?? [];
+  const key = (objectName + "=>" + attribute).toUpperCase();
+  if (path.includes(key)) {
+    throw new Error("constant chain " + [...path, key].join(" -> ") + " never reaches a value");
+  }
   const obj = reg.getObject("INTF", objectName) || reg.getObject("CLAS", objectName);
   if (!(obj instanceof abaplint.ABAPObject)) {
     return {kind: "void"};
   }
-  const member = {kind: "member" as const, object: obj, attribute: attribute};
-  if (obj.getType() === "CLAS" || components.length > 0) {
-    // a class's constant may change at run time; a component path is read where it lives
+  const member = {kind: "member" as const, object: obj, attribute: attribute, components: components};
+  if (obj.getType() === "CLAS") {
+    // a class's constant may change at run time
     return member;
   }
-  const key = (objectName + "=>" + attribute).toUpperCase();
-  if (seen.has(key)) {
-    return member;
-  }
-  seen.add(key);
 
   const identifier = findConstant(reg, obj, attribute);
   if (identifier === undefined) {
     return member;
   }
-  const next = findStatement(obj, identifier)?.findDirectExpression(abaplint.Expressions.Value)?.getChildren()[1];
-  if (next instanceof abaplint.Nodes.ExpressionNode && next.get() instanceof abaplint.Expressions.SimpleFieldChain) {
-    const further = constantSource(reg, next, seen);
+  if (components.length > 0) {
+    let value: any = identifier.getValue();
+    for (const component of components) {
+      value = typeof value === "object" && value !== null ? value[component] : undefined;
+    }
+    return typeof value === "string" ? {kind: "literal", value: value} : member;
+  }
+  const next = chainOf(findStatement(obj, identifier));
+  if (next !== undefined) {
+    const further = constantSource(reg, next, [...path, key]);
     return further.kind === "void" ? member : further;
   }
   const value = identifier.getValue();
   return typeof value === "string" ? {kind: "literal", value: value} : member;
+}
+
+/** the `other=>constant` chain a CONSTANTS statement's VALUE names, if it names one */
+export function chainOf(statement: abaplint.Nodes.StatementNode | undefined): abaplint.Nodes.ExpressionNode | undefined {
+  const chain = statement?.findDirectExpression(abaplint.Expressions.Value)?.getChildren()[1];
+  return chain instanceof abaplint.Nodes.ExpressionNode && chain.get() instanceof abaplint.Expressions.SimpleFieldChain
+    ? chain : undefined;
 }
 
 function findConstant(reg: abaplint.IRegistry, obj: abaplint.ABAPObject, attribute: string): abaplint.TypedIdentifier | undefined {
@@ -80,11 +97,12 @@ function findStatement(obj: abaplint.ABAPObject, identifier: abaplint.TypedIdent
 }
 
 /** the JS expression reading a member source at load */
-export function memberRead(source: {object: abaplint.ABAPObject, attribute: string}): string {
+export function memberRead(source: {object: abaplint.ABAPObject, attribute: string, components: string[]}): string {
   const name = source.object.getName();
   const attribute = source.attribute.toLowerCase();
   const property = source.object.getType() === "INTF"
     ? name.toLowerCase().replace(/\//g, "$") + "$" + attribute
     : attribute;
-  return "abap.Classes['" + name.toUpperCase() + "']." + property.replace(/\//g, "$");
+  return "abap.Classes['" + name.toUpperCase() + "']." + property.replace(/\//g, "$")
+    + source.components.map(c => ".get()." + c.replace(/\//g, "$")).join("");
 }
