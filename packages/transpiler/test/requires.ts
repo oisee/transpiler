@@ -170,4 +170,48 @@ ENDINTERFACE.`}];
     expect(n.chunk.getCode()).to.contain("zif_n.zif_n$y.set(abap.Classes['ZIF_P'].zif_p$x);");
   });
 
+
+  it("class constructor: an interface it reads is required; init checks nothing waits only when something can", async () => {
+    const files = [
+      {filename: "zcl_cc_i.clas.abap", contents: `CLASS zcl_cc_i DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_cc_i IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zif_ic=>cv.
+  ENDMETHOD.
+ENDCLASS.`},
+      {filename: "zif_ic.intf.abap", contents: `INTERFACE zif_ic PUBLIC.
+  CONSTANTS cv TYPE string VALUE 'ic'.
+ENDINTERFACE.`}];
+    const memory = files.map(f => new abaplint.MemoryFile(f.filename, f.contents));
+    const plain = await new Transpiler().run(new abaplint.Registry().addFiles(memory));
+    const clas = plain.objects.find(o => o.filename === "zcl_cc_i.clas.mjs")!;
+    expect(clas.requires.map(r => r.filename)).to.include("zif_ic.intf.abap");
+    expect(plain.initializationScript).to.not.contain("class constructors never ran at load");
+
+    const queued = [
+      {filename: "zcl_cc_base.clas.abap", contents: `CLASS zcl_cc_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA go TYPE REF TO zcl_cc_base.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_cc_base IMPLEMENTATION.
+  METHOD class_constructor.
+    CREATE OBJECT go TYPE zcl_cc_sub.
+  ENDMETHOD.
+ENDCLASS.`},
+      {filename: "zcl_cc_sub.clas.abap", contents: `CLASS zcl_cc_sub DEFINITION PUBLIC INHERITING FROM zcl_cc_base.
+ENDCLASS.
+CLASS zcl_cc_sub IMPLEMENTATION.
+ENDCLASS.`}];
+    const queuedFiles = queued.map(f => new abaplint.MemoryFile(f.filename, f.contents));
+    const out = await new Transpiler().run(new abaplint.Registry().addFiles(queuedFiles));
+    expect(out.initializationScript).to.contain("class constructors never ran at load");
+    const base = out.objects.find(o => o.filename === "zcl_cc_base.clas.mjs")!;
+    expect(base.requires.map(r => r.filename)).to.not.include("zcl_cc_sub.clas.abap");
+  });
+
 });
