@@ -24,6 +24,10 @@ describe("dynamicOrderBy, the text of a dynamic ORDER BY", () => {
     expect(abap.dynamicOrderBy("a nulls first, b")).to.equal("a nulls first, b");
   });
 
+  it("PRIMARY KEY inside a longer list is kept as one item", () => {
+    expect(abap.dynamicOrderBy("mandt, primary key")).to.equal("mandt, PRIMARY KEY");
+  });
+
   it("one column, PRIMARY KEY and a text that is no plain list pass unchanged", () => {
     expect(abap.dynamicOrderBy("a DESCENDING")).to.equal("a DESCENDING");
     expect(abap.dynamicOrderBy("PRIMARY KEY")).to.equal("PRIMARY KEY");

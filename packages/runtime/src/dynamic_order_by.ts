@@ -21,6 +21,11 @@ export function dynamicOrderBy(text: string): string {
   }
   const items: string[] = [];
   for (const group of trimmed.split(",")) {
+    // PRIMARY KEY is one item wherever it stands, never two columns
+    if (/^PRIMARY\s+KEY$/i.test(group.trim())) {
+      items.push("PRIMARY KEY");
+      continue;
+    }
     const tokens = group.trim().split(/\s+/).filter(token => token !== "");
     for (let i = 0; i < tokens.length; i++) {
       const upper = tokens[i].toUpperCase();
