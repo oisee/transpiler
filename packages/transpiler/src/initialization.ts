@@ -22,7 +22,7 @@ export function escapeFilenameForImport(filename: string): string {
     return filename.replace(/%/g, "%25").replace(/#/g, "%23");
 }
 
-import {CctorPlan, nothingWaits} from "./cctor_plan";
+import {CctorPlan, cycleNotice, nothingWaits} from "./cctor_plan";
 
 export class Initialization {
 
@@ -143,6 +143,9 @@ globalThis.abap = new runtime.ABAP();\n`;
     let ret = [...list, ...late].map(entry => entry.code).join("\n");
     if (CctorPlan.of(reg).anyWaiting()) {
       ret += "\n" + nothingWaits();
+    }
+    if (CctorPlan.of(reg).cycles().length > 0) {
+      ret += cycleNotice(CctorPlan.of(reg).cycles());
     }
     return ret;
   }

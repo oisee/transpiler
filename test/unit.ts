@@ -4611,4 +4611,84 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 3)).to.deep.equal(["base", "base"]);
   });
 
+
+  it("test-93", async () => {
+// critic q9: a class constructor reads a static of a descendant whose own constructor is queued.
+// The pool waits for the descendant's constructor to have run, the descendant for its superclass's:
+// a genuine wait-cycle. It runs in a defined order (superclass first) and says so at load.
+    const f0 = `
+CLASS zcl_pool DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv_pool TYPE string.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_pool IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_pool = zcl_x=>gv_x.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_m DEFINITION PUBLIC INHERITING FROM zcl_pool.
+ENDCLASS.
+CLASS zcl_m IMPLEMENTATION.
+ENDCLASS.`;
+    const f2 = `
+CLASS zcl_x DEFINITION PUBLIC INHERITING FROM zcl_m.
+  PUBLIC SECTION.
+    CLASS-DATA gv_x TYPE string.
+    CLASS-DATA n TYPE i.
+    CLASS-DATA go TYPE REF TO zcl_y2.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_x = 'xset'.
+    n = n + 1.
+    CREATE OBJECT go TYPE zcl_y2.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f3 = `
+CLASS zcl_y2 DEFINITION PUBLIC INHERITING FROM zcl_x.
+ENDCLASS.
+CLASS zcl_y2 IMPLEMENTATION.
+ENDCLASS.`;
+    const f4 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f5 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_pool=>gv_pool.
+    WRITE / zcl_x=>gv_x.
+    WRITE / zcl_x=>n.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_pool.clas.abap", contents: f0},
+      {filename: "zcl_m.clas.abap", contents: f1},
+      {filename: "zcl_x.clas.abap", contents: f2},
+      {filename: "zcl_y2.clas.abap", contents: f3},
+      {filename: "zcl_main.clas.abap", contents: f4},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f5},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 4)).to.deep.equal(["", "xset", "1"]);
+    const init = fs.readFileSync(outputFolder + path.sep + "init.mjs", "utf-8");
+    expect(init).to.contain('const __abapClassConstructorCycles = [["ZCL_POOL","ZCL_X"]];');
+    const index = path.join(outputFolder, "index.mjs");
+    const warned = childProcess.spawnSync(process.execPath, [index], {encoding: "utf-8"});
+    expect(warned.stderr).to.contain("class constructors in a wait-cycle ran in a defined order ABAP would not use: ZCL_POOL <-> ZCL_X");
+    const hosted = childProcess.spawnSync(process.execPath, ["--input-type=module", "-e",
+      `globalThis.osdLoadNotice = (n) => console.log("NOTICE " + JSON.stringify(n)); await import(${JSON.stringify("file://" + index)});`],
+      {encoding: "utf-8"});
+    expect(hosted.stdout).to.contain('NOTICE {"kind":"cctor-cycle","pools":["ZCL_POOL","ZCL_X"]}');
+    expect(hosted.stderr).to.not.contain("wait-cycle");
+  });
+
 });

@@ -8,7 +8,7 @@ import {chainOf, constantSource} from "./constant_value";
  * is required (requires.ts). A requirement that would close an import cycle is not taken (two
  * constructors naming each other's classes, a constructor creating its own subclass, a ring):
  * every module of the cycle would await another and none would settle. That pool's class
- * constructors WAIT instead, for the module of the class they named to be registered.
+ * constructors WAIT instead, for the class they named to have run its class constructor.
  *
  * A waiting pool delays what depends on its class constructor having run, in ABAP's order:
  * - a subclass's class constructor runs after its superclass's (ABAP runs them top-down);
@@ -17,8 +17,8 @@ import {chainOf, constantSource} from "./constant_value";
  *   class's constructor ran.
  * Those wait too, for the class constructor they depend on to have run. The waits are released
  * at the end of the modules involved (`settle`), in dependency order, each exactly once. What
- * still waits when init.mjs has imported everything is an error naming it, never a silent
- * initial value (initialization.ts).
+ * still waits when init.mjs has imported everything is an error naming it (initialization.ts).
+ * A genuine wait-cycle gets a defined order and a load-time notice (breakWaitCycles).
  *
  * The decision is made over the whole registry, in the order of the object names, against the
  * load-time edges the modules really have: superclass, CX_ROOT, the global superclasses of
@@ -45,6 +45,7 @@ export class CctorPlan {
   /** name -> what it waits for: "X" = X's module registered, "X!" = X's class constructor ran */
   private readonly needs = new Map<string, string[]>();
   private readonly releasing = new Set<string>();
+  private readonly cycleList: string[][] = [];
 
   private constructor(reg: abaplint.IRegistry) {
     const objects = new Map<string, abaplint.ABAPObject>();
@@ -152,11 +153,19 @@ export class CctorPlan {
         constructors.set(name, targets.filter(t => objects.has(t) && t !== name).sort());
       }
     }
-    // the requirements, and the cycle skips: those pools wait for the module to register
+    // the requirements, and the cycle skips. The rule, said once: whoever reads a pool at load
+    // waits for its class constructor to have RUN ("X!"); "X" (registered) is only what a wait
+    // falls back to when a wait-cycle is broken, below
+    const kinds = new Map<string, number>();
+    const SKIP = 0;
+    const TARGET = 1;
+    const READ = 2;
+    const SUPER = 3;
     for (const [name, targets] of constructors) {
       for (const target of targets) {
         if (reaches(target, name)) {
-          add(this.needs, name, target);
+          add(this.needs, name, target + "!");
+          kinds.set(name + ">" + target, SKIP);
           this.releasing.add(target);
         } else {
           edge(name, target);
@@ -169,22 +178,85 @@ export class CctorPlan {
       changed = false;
       const now = new Set(this.needs.keys());
       for (const name of names) {
-        let depends: string[];
+        let depends: [string, number][];
         if (constructors.has(name)) {
-          depends = [...(supers.get(name) ?? []), ...(this.required.get(name) ?? [])];
+          depends = [...(supers.get(name) ?? []).map((d): [string, number] => [d, SUPER]),
+            ...(this.required.get(name) ?? []).map((d): [string, number] => [d, TARGET])];
         } else if (isClass(name)) {
           continue;
         } else {
-          depends = constantReads.get(name) ?? [];
+          depends = (constantReads.get(name) ?? []).map((d): [string, number] => [d, READ]);
         }
-        for (const d of depends) {
+        for (const [d, kind] of depends) {
           if (now.has(d) && (this.needs.get(name) ?? []).includes(d + "!") === false) {
             add(this.needs, name, d + "!");
+            kinds.set(name + ">" + d, kind);
             changed = true;
           }
         }
       }
     }
+    this.breakWaitCycles(kinds);
+  }
+
+  /** A genuine wait-cycle -- A waits for B's class constructor to have run and B for A's -- would
+   * leave both queued for ever. ABAP resolves it by running the inner constructor nested at the
+   * point of use; this runtime runs constructors whole, so it picks a defined order instead and
+   * says so at load (initialization.ts): in each cycle, one wait falls back to "registered",
+   * chosen by kind -- a cycle skip first, then a constructor naming the class, then an interface
+   * read, never a superclass (ABAP runs those first) -- and by name. Deterministic. */
+  private breakWaitCycles(kinds: Map<string, number>): void {
+    const waitsRan = (name: string) => (this.needs.get(name) ?? [])
+      .filter(n => n.endsWith("!") && this.needs.has(n.slice(0, -1))).map(n => n.slice(0, -1)).sort();
+    for (;;) {
+      const cycle = this.findCycle(waitsRan);
+      if (cycle === undefined) {
+        return;
+      }
+      const steps = cycle.map((from, i) => [from, cycle[(i + 1) % cycle.length]]);
+      steps.sort((a, b) => (kinds.get(a[0] + ">" + a[1]) ?? 1) - (kinds.get(b[0] + ">" + b[1]) ?? 1)
+        || (a[0] + ">" + a[1]).localeCompare(b[0] + ">" + b[1]));
+      const [from, to] = steps[0];
+      this.needs.set(from, (this.needs.get(from) ?? []).map(n => n === to + "!" ? to : n));
+      const members = [...cycle].sort();
+      if (this.cycleList.some(c => c.join() === members.join()) === false) {
+        this.cycleList.push(members);
+      }
+    }
+  }
+
+  private findCycle(next: (name: string) => string[]): string[] | undefined {
+    const state = new Map<string, number>();
+    const path: string[] = [];
+    let found: string[] | undefined;
+    const visit = (name: string): void => {
+      state.set(name, 1);
+      path.push(name);
+      for (const to of next(name)) {
+        if (found !== undefined) {
+          return;
+        }
+        if (state.get(to) === 1) {
+          found = path.slice(path.indexOf(to));
+          return;
+        } else if (state.get(to) === undefined) {
+          visit(to);
+        }
+      }
+      path.pop();
+      state.set(name, 2);
+    };
+    for (const name of [...this.needs.keys()].sort()) {
+      if (found === undefined && state.get(name) === undefined) {
+        visit(name);
+      }
+    }
+    return found;
+  }
+
+  /** the wait-cycles broken into a defined order, each as its sorted pool names */
+  public cycles(): readonly string[][] {
+    return this.cycleList;
   }
 
   /** the classes and interfaces whose modules a pool's module requires for its class constructors */
@@ -275,6 +347,21 @@ export function waitingConstructors(name: string, needs: readonly string[], call
 
 export function releaseConstructors(): string {
   return queue() + `await ${CCTOR_QUEUE}.settle();\n`;
+}
+
+/** the end of init.mjs: the wait-cycles broken into a defined order are said once -- through the
+ * host's osdLoadNotice when it has one, else one console.warn -- and listed as data on the line
+ * the generation check reads (tools/osd-generation-check.mjs in open-steamgate) */
+export const CCTOR_CYCLES = "__abapClassConstructorCycles";
+
+export function cycleNotice(cycles: readonly string[][]): string {
+  return `const ${CCTOR_CYCLES} = ${JSON.stringify(cycles)};\n`
+    + `if (typeof globalThis.osdLoadNotice === "function") {\n`
+    + `  for (const pools of ${CCTOR_CYCLES}) globalThis.osdLoadNotice({kind: "cctor-cycle", pools});\n`
+    + `} else {\n`
+    + `  console.warn("class constructors in a wait-cycle ran in a defined order ABAP would not use: "`
+    + ` + ${CCTOR_CYCLES}.map(c => c.join(" <-> ")).join("; "));\n`
+    + `}\n`;
 }
 
 /** the end of init.mjs: what still waits is an error, never a silent initial value */
