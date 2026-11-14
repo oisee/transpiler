@@ -19,6 +19,11 @@ export function dynamicOrderBy(text: string): string {
   }
   const items: string[] = [];
   for (const group of trimmed.split(",")) {
+    // PRIMARY KEY is one item wherever it stands, never two columns
+    if (/^PRIMARY\s+KEY$/i.test(group.trim())) {
+      items.push("PRIMARY KEY");
+      continue;
+    }
     for (const token of group.trim().split(/\s+/)) {
       if (token === "") {
         continue;
