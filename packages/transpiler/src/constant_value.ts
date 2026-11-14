@@ -78,6 +78,13 @@ export function constantSource(reg: abaplint.IRegistry, chain: abaplint.Nodes.Ex
   return typeof value === "string" ? {kind: "literal", value: value} : member;
 }
 
+/** the `other=>constant` chain a CONSTANTS statement's VALUE names, if it names one */
+export function chainOf(statement: abaplint.Nodes.StatementNode | undefined): abaplint.Nodes.ExpressionNode | undefined {
+  const chain = statement?.findDirectExpression(abaplint.Expressions.Value)?.getChildren()[1];
+  return chain instanceof abaplint.Nodes.ExpressionNode && chain.get() instanceof abaplint.Expressions.SimpleFieldChain
+    ? chain : undefined;
+}
+
 function findConstant(reg: abaplint.IRegistry, obj: abaplint.ABAPObject, attribute: string): abaplint.TypedIdentifier | undefined {
   const found: abaplint.TypedIdentifier[] = [];
   const walk = (n: abaplint.ISpaghettiScopeNode) => {
