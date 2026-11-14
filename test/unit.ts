@@ -4260,4 +4260,355 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 4)).to.deep.equal(["zcl_cc_r2", "zcl_cc_r3", "zcl_cc_r1"]);
   });
 
+
+  it("test-87", async () => {
+// a subclass's class constructor reads a static its superclass's queued class constructor sets: the superclass's runs first (critic q2)
+    const f0 = `
+CLASS zcl_cc_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv_base TYPE string.
+    CLASS-DATA go_default TYPE REF TO zcl_cc_base.
+    CLASS-METHODS class_constructor.
+    METHODS name RETURNING VALUE(result) TYPE string.
+ENDCLASS.
+CLASS zcl_cc_base IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_base = 'base'.
+    CREATE OBJECT go_default TYPE zcl_cc_sub.
+  ENDMETHOD.
+  METHOD name.
+    result = 'base'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_cc_sub DEFINITION PUBLIC INHERITING FROM zcl_cc_base.
+  PUBLIC SECTION.
+    CLASS-DATA gv_sub TYPE string.
+    CLASS-METHODS class_constructor.
+    METHODS name REDEFINITION.
+ENDCLASS.
+CLASS zcl_cc_sub IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_sub = gv_base.
+  ENDMETHOD.
+  METHOD name.
+    result = 'sub'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f2 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f3 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_cc_sub=>gv_sub.
+    WRITE / zcl_cc_sub=>gv_base.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_base.clas.abap", contents: f0},
+      {filename: "zcl_cc_sub.clas.abap", contents: f1},
+      {filename: "zcl_main.clas.abap", contents: f2},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f3},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 3)).to.deep.equal(["base", "base"]);
+  });
+
+  it("test-88", async () => {
+// another class's class constructor reads a queued pool's static: it runs after the pool's class constructor (critic q6)
+    const f0 = `
+CLASS zcl_cc_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv_base TYPE string.
+    CLASS-DATA go_default TYPE REF TO zcl_cc_base.
+    CLASS-METHODS class_constructor.
+    METHODS name RETURNING VALUE(result) TYPE string.
+ENDCLASS.
+CLASS zcl_cc_base IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_base = 'base'.
+    CREATE OBJECT go_default TYPE zcl_cc_sub.
+  ENDMETHOD.
+  METHOD name.
+    result = 'base'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_user DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_user IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zcl_cc_base=>gv_base.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f2 = `
+CLASS zcl_cc_sub DEFINITION PUBLIC INHERITING FROM zcl_cc_base.
+  PUBLIC SECTION.
+    METHODS name REDEFINITION.
+ENDCLASS.
+CLASS zcl_cc_sub IMPLEMENTATION.
+  METHOD name.
+    result = 'sub'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f3 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f4 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_user=>gv.
+    WRITE / zcl_cc_base=>gv_base.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_base.clas.abap", contents: f0},
+      {filename: "zcl_user.clas.abap", contents: f1},
+      {filename: "zcl_cc_sub.clas.abap", contents: f2},
+      {filename: "zcl_main.clas.abap", contents: f3},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f4},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 3)).to.deep.equal(["base", "base"]);
+  });
+
+  it("test-89", async () => {
+// two class constructors naming each other: each runs exactly once (critic q1)
+    const f0 = `
+CLASS zcl_cc_a DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-DATA n TYPE i.
+    CLASS-METHODS class_constructor.
+    CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+ENDCLASS.
+CLASS zcl_cc_a IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zcl_cc_b=>hello( ).
+    n = n + 1.
+  ENDMETHOD.
+  METHOD hello.
+    result = 'zcl_cc_a'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_cc_b DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-DATA n TYPE i.
+    CLASS-METHODS class_constructor.
+    CLASS-METHODS hello RETURNING VALUE(result) TYPE string.
+ENDCLASS.
+CLASS zcl_cc_b IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zcl_cc_a=>hello( ).
+    n = n + 1.
+  ENDMETHOD.
+  METHOD hello.
+    result = 'zcl_cc_b'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f2 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f3 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_cc_a=>gv.
+    WRITE / zcl_cc_a=>n.
+    WRITE / zcl_cc_b=>gv.
+    WRITE / zcl_cc_b=>n.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_a.clas.abap", contents: f0},
+      {filename: "zcl_cc_b.clas.abap", contents: f1},
+      {filename: "zcl_main.clas.abap", contents: f2},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f3},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 5)).to.deep.equal(["zcl_cc_b", "1", "zcl_cc_a", "1"]);
+  });
+
+  it("test-90", async () => {
+// a class constructor reading an interface constant (critic q4)
+    const f0 = `
+CLASS zcl_cc_i DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_cc_i IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zif_ic=>cv.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f2 = `
+INTERFACE zif_ic PUBLIC.
+  CONSTANTS cv TYPE string VALUE 'ic'.
+ENDINTERFACE.`;
+    const f3 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_cc_i=>gv.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_i.clas.abap", contents: f0},
+      {filename: "zcl_main.clas.abap", contents: f1},
+      {filename: "zif_ic.intf.abap", contents: f2},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f3},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 2)).to.deep.equal(["ic"]);
+  });
+
+  it("test-91", async () => {
+// an interface constant from the constant of a class whose queued class constructor sets it: read after it ran
+    const zifq = `
+    INTERFACE zif_q PUBLIC.
+      CONSTANTS c TYPE c LENGTH 1 VALUE zcl_q=>k.
+    ENDINTERFACE.`;
+    const zclq = `
+    CLASS zcl_q DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CONSTANTS k TYPE c LENGTH 1 VALUE '_'.
+        CLASS-DATA go TYPE REF TO zcl_q.
+        CLASS-METHODS class_constructor.
+    ENDCLASS.
+    CLASS zcl_q IMPLEMENTATION.
+      METHOD class_constructor.
+        WRITE '@KERNEL zcl_q.k.set("K");'.
+        CREATE OBJECT go TYPE zcl_q_sub.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const zclqsub = `
+    CLASS zcl_q_sub DEFINITION PUBLIC INHERITING FROM zcl_q.
+    ENDCLASS.
+    CLASS zcl_q_sub IMPLEMENTATION.
+    ENDCLASS.`;
+    const runner = `
+    CLASS zcl_q_run DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_q_run IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zif_q=>c.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zif_q.intf.abap", contents: zifq},
+      {filename: "zcl_q.clas.abap", contents: zclq},
+      {filename: "zcl_q_sub.clas.abap", contents: zclqsub},
+      {filename: "zcl_q_run.clas.abap", contents: runner},
+      {filename: "zcl_q_run.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n")[1]).to.equal("K");
+  });
+
+  it("test-92", async () => {
+// critic q6 with the reader sorted between the queued pool and the module that releases it (zcl_cc_base, zcl_cc_c_user, zcl_cc_sub): it still runs after the pool's class constructor
+    const f0 = `
+CLASS zcl_cc_base DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv_base TYPE string.
+    CLASS-DATA go_default TYPE REF TO zcl_cc_base.
+    CLASS-METHODS class_constructor.
+    METHODS name RETURNING VALUE(result) TYPE string.
+ENDCLASS.
+CLASS zcl_cc_base IMPLEMENTATION.
+  METHOD class_constructor.
+    gv_base = 'base'.
+    CREATE OBJECT go_default TYPE zcl_cc_sub.
+  ENDMETHOD.
+  METHOD name.
+    result = 'base'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f1 = `
+CLASS zcl_cc_c_user DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    CLASS-DATA gv TYPE string.
+    CLASS-METHODS class_constructor.
+ENDCLASS.
+CLASS zcl_cc_c_user IMPLEMENTATION.
+  METHOD class_constructor.
+    gv = zcl_cc_base=>gv_base.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f2 = `
+CLASS zcl_cc_sub DEFINITION PUBLIC INHERITING FROM zcl_cc_base.
+  PUBLIC SECTION.
+    METHODS name REDEFINITION.
+ENDCLASS.
+CLASS zcl_cc_sub IMPLEMENTATION.
+  METHOD name.
+    result = 'sub'.
+  ENDMETHOD.
+ENDCLASS.`;
+    const f3 = `
+CLASS zcl_main DEFINITION PUBLIC.
+ENDCLASS.
+CLASS zcl_main IMPLEMENTATION.
+ENDCLASS.`;
+    const f4 = `
+CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+  PRIVATE SECTION.
+    METHODS test01 FOR TESTING.
+ENDCLASS.
+CLASS ltcl_test IMPLEMENTATION.
+  METHOD test01.
+    WRITE / zcl_cc_c_user=>gv.
+    WRITE / zcl_cc_base=>gv_base.
+  ENDMETHOD.
+ENDCLASS.`;
+    const files = [
+      {filename: "zcl_cc_base.clas.abap", contents: f0},
+      {filename: "zcl_cc_c_user.clas.abap", contents: f1},
+      {filename: "zcl_cc_sub.clas.abap", contents: f2},
+      {filename: "zcl_main.clas.abap", contents: f3},
+      {filename: "zcl_main.clas.testclasses.abap", contents: f4},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 3)).to.deep.equal(["base", "base"]);
+  });
+
 });

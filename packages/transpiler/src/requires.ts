@@ -102,7 +102,7 @@ export class Requires {
       // constructors wait for the class at load instead of requiring it
       if (obj.getType() === "CLAS" && filename === obj.getMainABAPFile()?.getFilename()) {
         for (const target of CctorPlan.of(this.reg).requiredBy(obj.getName())) {
-          const found = this.reg.getObject("CLAS", target);
+          const found = this.reg.getObject("CLAS", target) || this.reg.getObject("INTF", target);
           const main = found instanceof abaplint.ABAPObject ? found.getMainABAPFile()?.getFilename() : undefined;
           if (main) {
             add({filename: main, name: undefined});

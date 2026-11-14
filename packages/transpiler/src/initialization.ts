@@ -22,6 +22,8 @@ export function escapeFilenameForImport(filename: string): string {
     return filename.replace(/%/g, "%25").replace(/#/g, "%23");
 }
 
+import {CctorPlan, nothingWaits} from "./cctor_plan";
+
 export class Initialization {
 
   public constructor(private readonly layout = new OutputLayout()) {
@@ -135,7 +137,14 @@ globalThis.abap = new runtime.ABAP();\n`;
 
     // Folder names must not change the original module initialization order.
     list.sort((a, b) => a.filename < b.filename ? -1 : a.filename > b.filename ? 1 : 0);
-    return [...list, ...late].map(entry => entry.code).join("\n");
+    // the class constructor pools too: their order decides which constructor runs first, and
+    // it must not depend on the order the registry happens to hold the objects in
+    late.sort((a, b) => a.filename < b.filename ? -1 : a.filename > b.filename ? 1 : 0);
+    let ret = [...list, ...late].map(entry => entry.code).join("\n");
+    if (CctorPlan.of(reg).anyWaiting()) {
+      ret += "\n" + nothingWaits();
+    }
+    return ret;
   }
 
   // class constructors might make early use of eg. constants from interfaces

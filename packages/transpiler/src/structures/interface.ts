@@ -4,6 +4,7 @@ import {Traversal} from "../traversal";
 import {ConstantTranspiler, FieldChainTranspiler} from "../expressions";
 import {Chunk} from "../chunk";
 import {constantSource, memberRead} from "../constant_value";
+import {CctorPlan, releaseConstructors, waitingConstructors} from "../cctor_plan";
 
 export class InterfaceTranspiler implements IStructureTranspiler {
 
@@ -61,6 +62,10 @@ export class InterfaceTranspiler implements IStructureTranspiler {
       return "";
     }
     let ret = "\n";
+    let late = "";
+    const intfName = node.getFirstToken().getStr().toUpperCase();
+    const plan = CctorPlan.of(traversal.reg);
+    const waiting = plan.waitingFor(intfName);
     for (const n in vars) {
       const identifier = vars[n];
       if (identifier.getMeta().includes(abaplint.IdentifierMeta.Static) === false
@@ -91,6 +96,9 @@ export class InterfaceTranspiler implements IStructureTranspiler {
         const source = constantSource(traversal.reg, chain, [(node.getFirstToken().getStr() + "=>" + n).toUpperCase()]);
         if (source.kind === "literal") {
           ret += name + ".set(" + ConstantTranspiler.escape(ConstantTranspiler.trimTextFieldLiteral(source.value)) + ");\n";
+        } else if (source.kind === "member" && waiting.length > 0) {
+          // the class it reads waits for its class constructor: set after it ran (cctor_plan.ts)
+          late += name + ".set(" + memberRead(source) + ");\n";
         } else if (source.kind === "member") {
           ret += name + ".set(" + memberRead(source) + ");\n";
         } else {
@@ -101,6 +109,12 @@ export class InterfaceTranspiler implements IStructureTranspiler {
       }
 
       ret += traversal.setValues(identifier, name);
+    }
+    if (late !== "") {
+      ret += waitingConstructors(intfName, waiting, late);
+    }
+    if (plan.releases(intfName)) {
+      ret += releaseConstructors();
     }
     return ret;
   }

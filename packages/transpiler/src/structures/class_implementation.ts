@@ -288,11 +288,12 @@ export class ClassImplementationTranspiler implements IStructureTranspiler {
             }
           }
         }
-        // a class the constructors name whose requirement would close an import cycle: they
-        // wait for it, and a module such constructors wait for releases them (cctor_plan.ts)
+        // constructors that must wait -- for a class whose requirement would close an import
+        // cycle, or for a class constructor they depend on to have run -- are queued, and the
+        // modules involved release the queue in dependency order (cctor_plan.ts)
         const plan = CctorPlan.of(traversal.reg);
         const waiting = plan.waitingFor(cdef.getName());
-        ret += waiting.length > 0 && calls !== "" ? waitingConstructors(waiting, calls) : calls;
+        ret += waiting.length > 0 && calls !== "" ? waitingConstructors(cdef.getName().toUpperCase(), waiting, calls) : calls;
         if (plan.releases(cdef.getName())) {
           ret += releaseConstructors();
         }
