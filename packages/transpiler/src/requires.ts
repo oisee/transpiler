@@ -130,7 +130,8 @@ export class Requires {
         if (!(chain instanceof abaplint.Nodes.ExpressionNode) || !(chain.get() instanceof abaplint.Expressions.SimpleFieldChain)) {
           continue;
         }
-        const source = constantSource(this.reg, chain);
+        const declared = statement.findDirectExpression(abaplint.Expressions.DefinitionName)?.getFirstToken().getStr() ?? "";
+        const source = constantSource(this.reg, chain, [(obj.getName() + "=>" + declared).toUpperCase()]);
         if (source.kind !== "member" || source.object.getName().toUpperCase() === obj.getName().toUpperCase()) {
           continue;
         }

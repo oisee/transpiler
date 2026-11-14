@@ -2,6 +2,8 @@ import * as abaplint from "@abaplint/core";
 import {IStructureTranspiler} from "./_structure_transpiler";
 import {Traversal} from "../traversal";
 import {Chunk} from "../chunk";
+import {chainOf, constantSource} from "../constant_value";
+import {ConstantTranspiler} from "../expressions";
 
 export class ClassImplementationTranspiler implements IStructureTranspiler {
 
@@ -235,6 +237,17 @@ export class ClassImplementationTranspiler implements IStructureTranspiler {
       const name = Traversal.escapeNamespace(clasName) + "." + Traversal.escapeNamespace(attr.prefix) + Traversal.escapeNamespace(attr.identifier.getName().toLowerCase());
       ret += name + " = " + traversal.toType(attr.identifier.getType()) + ";\n";
 
+      // a constant whose VALUE is another object's constant, which abaplint leaves without a
+      // value when the chain runs further than it follows: folded when the chain ends in an
+      // interface literal (constant_value.ts); a class's constant stays as before
+      const chain = attr.prefix === "" && attr.identifier.getValue() === undefined && attr.identifier instanceof abaplint.Types.ClassConstant
+        ? chainOf(traversal.findStatementInFile(attr.identifier.getStart())) : undefined;
+      const source = chain === undefined ? undefined
+        : constantSource(traversal.reg, chain, [(clasName + "=>" + attr.identifier.getName()).toUpperCase()]);
+      if (source?.kind === "literal") {
+        ret += name + ".set(" + ConstantTranspiler.escape(ConstantTranspiler.trimTextFieldLiteral(source.value)) + ");\n";
+        continue;
+      }
       ret += traversal.setValues(attr.identifier, name);
     }
 

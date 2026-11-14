@@ -88,7 +88,7 @@ export class InterfaceTranspiler implements IStructureTranspiler {
       // may set at run time, is read at load from that class, which requires.ts loads first
       const chain = valExpression?.getChildren()[1];
       if (chain instanceof abaplint.Nodes.ExpressionNode && chain.get() instanceof abaplint.Expressions.SimpleFieldChain) {
-        const source = constantSource(traversal.reg, chain);
+        const source = constantSource(traversal.reg, chain, [(node.getFirstToken().getStr() + "=>" + n).toUpperCase()]);
         if (source.kind === "literal") {
           ret += name + ".set(" + ConstantTranspiler.escape(ConstantTranspiler.trimTextFieldLiteral(source.value)) + ");\n";
         } else if (source.kind === "member") {

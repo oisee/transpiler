@@ -3892,4 +3892,128 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 3)).to.deep.equal(["N", "N"]);
   });
 
+
+  it("test-81", async () => {
+// an interface constant declared from a component of another object's structured constant
+    const zifu = `
+    INTERFACE zif_u PUBLIC.
+      CONSTANTS c TYPE string VALUE zif_a=>gs-comp.
+      CONSTANTS k TYPE string VALUE zcl_s=>gs-comp.
+    ENDINTERFACE.`;
+    const zifa = `
+    INTERFACE zif_a PUBLIC.
+      CONSTANTS: BEGIN OF gs,
+                   comp  TYPE string VALUE 'v',
+                   other TYPE string VALUE 'w',
+                 END OF gs.
+    ENDINTERFACE.`;
+    const zcls = `
+    CLASS zcl_s DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CONSTANTS: BEGIN OF gs,
+                     comp  TYPE string VALUE 'k',
+                     other TYPE string VALUE 'x',
+                   END OF gs.
+    ENDCLASS.
+    CLASS zcl_s IMPLEMENTATION.
+    ENDCLASS.`;
+    const clas = `
+    CLASS zcl_consts DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_consts IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zif_u=>c.
+        WRITE / zif_u=>k.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zif_u.intf.abap", contents: zifu},
+      {filename: "zif_a.intf.abap", contents: zifa},
+      {filename: "zcl_s.clas.abap", contents: zcls},
+      {filename: "zcl_consts.clas.abap", contents: clas},
+      {filename: "zcl_consts.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 3)).to.deep.equal(["v", "k"]);
+  });
+
+  it("test-83", async () => {
+// a class constant from an interface constant whose value is two hops away
+    const zclk = `
+    CLASS zcl_k DEFINITION PUBLIC.
+      PUBLIC SECTION.
+        CONSTANTS y TYPE string VALUE zif_t=>x2.
+    ENDCLASS.
+    CLASS zcl_k IMPLEMENTATION.
+    ENDCLASS.`;
+    const zift = `
+    INTERFACE zif_t PUBLIC.
+      CONSTANTS x2 TYPE string VALUE zif_v=>x3.
+    ENDINTERFACE.`;
+    const zifv = `
+    INTERFACE zif_v PUBLIC.
+      CONSTANTS x3 TYPE string VALUE zif_w=>x4.
+    ENDINTERFACE.`;
+    const zifw = `
+    INTERFACE zif_w PUBLIC.
+      CONSTANTS x4 TYPE string VALUE 'u'.
+    ENDINTERFACE.`;
+    const clas = `
+    CLASS zcl_consts DEFINITION PUBLIC.
+    ENDCLASS.
+    CLASS zcl_consts IMPLEMENTATION.
+    ENDCLASS.`;
+    const tests = `
+    CLASS ltcl_test DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT FINAL.
+      PRIVATE SECTION.
+        METHODS test01 FOR TESTING.
+    ENDCLASS.
+    CLASS ltcl_test IMPLEMENTATION.
+      METHOD test01.
+        WRITE / zcl_k=>y.
+      ENDMETHOD.
+    ENDCLASS.`;
+    const files = [
+      {filename: "zcl_k.clas.abap", contents: zclk},
+      {filename: "zif_t.intf.abap", contents: zift},
+      {filename: "zif_v.intf.abap", contents: zifv},
+      {filename: "zif_w.intf.abap", contents: zifw},
+      {filename: "zcl_consts.clas.abap", contents: clas},
+      {filename: "zcl_consts.clas.testclasses.abap", contents: tests},
+    ];
+    const cons = await dumpNrun(files, false);
+    expect(cons.split("\n").slice(1, 2)).to.deep.equal(["u"]);
+  });
+
+  it("test-82", async () => {
+// two interface constants whose VALUEs name each other never reach a value: the transpile refuses
+// with the chain named, instead of emitting two modules that await each other at load
+    const zifx = `
+    INTERFACE zif_x PUBLIC.
+      CONSTANTS c TYPE string VALUE zif_y=>d.
+    ENDINTERFACE.`;
+    const zify = `
+    INTERFACE zif_y PUBLIC.
+      CONSTANTS d TYPE string VALUE zif_x=>c.
+    ENDINTERFACE.`;
+    const files = [
+      {filename: "zif_x.intf.abap", contents: zifx},
+      {filename: "zif_y.intf.abap", contents: zify},
+    ];
+    let message = "";
+    try {
+      await dumpNrun(files, false);
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).to.match(/constant chain .*ZIF_X=>C.*ZIF_Y=>D.*never reaches a value/i);
+  });
+
 });
