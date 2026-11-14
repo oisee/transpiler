@@ -764,6 +764,54 @@ ENDSELECT.`;
     }, {snowflake: false});
   });
 
+  describe("dynamic ORDER BY, columns separated by blanks", () => {
+    // Open SQL takes `ORDER BY (lv)` with lv = `f1 f2`; SQL needs the comma.
+    // A fifth head shares ALPHA with 0001, so the second column decides.
+    const orderBy = (order: string, join: boolean) => joinFiles(`
+ls_seed_h-id = '0005'. ls_seed_h-name = 'ALPHA'. ls_seed_h-adrnr = 'A2'. INSERT zjhead FROM ls_seed_h.
+DATA lv_order TYPE string.
+lv_order = '${order}'.
+` + (join ? `
+SELECT h~id h~name a~city INTO (lv_id, lv_name, lv_city)
+  FROM ( zjhead AS h INNER JOIN zjadr AS a ON h~adrnr = a~adrnr )
+  ORDER BY (lv_order).
+  WRITE / |{ lv_id } { lv_name } { lv_city }|.
+ENDSELECT.` : `
+SELECT id name INTO (lv_id, lv_name) FROM zjhead ORDER BY (lv_order).
+  WRITE / |{ lv_id } { lv_name }|.
+ENDSELECT.`));
+
+    it("f1 f2", async () => {
+      await runAllDatabases(abap, orderBy("name id", false), () => {
+        expect(abap.console.getTrimmed()).to.equal("0001 ALPHA\n0005 ALPHA\n0002 BETA\n0004 DELTA\n0003 GAMMA");
+      }, {snowflake: false});
+    });
+
+    it("f1 DESCENDING f2", async () => {
+      await runAllDatabases(abap, orderBy("name DESCENDING id", false), () => {
+        expect(abap.console.getTrimmed()).to.equal("0003 GAMMA\n0004 DELTA\n0002 BETA\n0001 ALPHA\n0005 ALPHA");
+      }, {snowflake: false});
+    });
+
+    it("a~f1 b~f2 over a join", async () => {
+      await runAllDatabases(abap, orderBy("h~name a~city DESCENDING", true), () => {
+        expect(abap.console.getTrimmed()).to.equal("0001 ALPHA OSLO\n0005 ALPHA BERGEN\n0002 BETA BERGEN\n0003 GAMMA ROME");
+      }, {snowflake: false});
+    });
+
+    it("already comma-separated", async () => {
+      await runAllDatabases(abap, orderBy("name, id DESCENDING", false), () => {
+        expect(abap.console.getTrimmed()).to.equal("0005 ALPHA\n0001 ALPHA\n0002 BETA\n0004 DELTA\n0003 GAMMA");
+      }, {snowflake: false});
+    });
+
+    it("PRIMARY KEY", async () => {
+      await runAllDatabases(abap, orderBy("PRIMARY KEY", false), () => {
+        expect(abap.console.getTrimmed()).to.equal("0001 ALPHA\n0002 BETA\n0003 GAMMA\n0004 DELTA\n0005 ALPHA");
+      }, {snowflake: false});
+    });
+  });
+
   it("SELECT loop, join, WHERE on both aliases and ORDER BY DESCENDING", async () => {
     const code = `
 SELECT h~id h~name a~city INTO (lv_id, lv_name, lv_city)
