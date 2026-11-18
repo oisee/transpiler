@@ -18,8 +18,13 @@ declare const abap: ABAP;
 //
 // Not modelled: the conversion of the ID to the length of the dbtab's key
 // field (an ID longer than that field is not cut), the displacement of
-// SHARED BUFFER clusters when the buffer is full, and the refusal of
-// references inside an exported value.
+// SHARED BUFFER clusters when the buffer is full, the refusal of
+// references inside an exported value, and the type check of IMPORT: a
+// system raises CX_SY_IMPORT_MISMATCH_ERROR when a target's type does not
+// fit the stored parameter, here the target is set from the stored value
+// with the ordinary MOVE conversion. The store is the process's: a host
+// that recycles its process starts with no clusters, the way an
+// application server's restart empties its shared memory.
 
 export type DataClusterMedium = "SHARED MEMORY" | "SHARED BUFFER";
 
