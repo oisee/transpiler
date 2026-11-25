@@ -211,6 +211,8 @@ export function templateFormatting(source: ICharacter | INumeric | number | stri
       text = source.toFixed(source.getDecimals());
     }
   } else if (source instanceof Integer) {
+    // an embedded expression of i operands is calculated in i, a template gives it no wider type
+    checkIntegerResult(source.get());
     if (options?.decimals !== undefined) {
       text = source.get().toFixed(options.decimals);
     } else if (options?.style === "scientific") {
@@ -224,11 +226,6 @@ export function templateFormatting(source: ICharacter | INumeric | number | stri
     text = scientific(toDigits(source.get() + ""));
   } else if (typeof source === "number" || typeof source === "string") {
     text = source + "";
-  } else if (source instanceof Integer) {
-    // an embedded expression of i operands is calculated in i, a template gives it no wider type
-    const value = source.get();
-    checkIntegerResult(value);
-    text = value + "";
   } else {
     text = source.get() + "";
   }

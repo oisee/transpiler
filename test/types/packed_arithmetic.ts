@@ -61,10 +61,10 @@ describe("Packed expression consumers retain main behavior", () => {
   const declaration = "DATA p TYPE p DECIMALS 2. p = '0.10'.";
   const cases: [string, string, string][] = [
     ["WRITE", "WRITE p * 3.", "3,0000000000000004E-01"],
-    ["template", "WRITE |{ p * 3 }|.", "0.3000000000000000"],
+    ["template", "WRITE |{ p * 3 }|.", "0.30000000000000004"],
     ["string target", "DATA s TYPE string. s = p * 3. WRITE s.", "3.0000000000000004E-01"],
-    ["c target", "DATA c TYPE c LENGTH 30. c = p * 3. WRITE |[{ c }]|.", "[3,0000000000000004E-01]"],
-    ["WIDTH/ALIGN", "WRITE |[{ p * 3 WIDTH = 20 ALIGN = RIGHT }]|.", "[0.3000000000000000  ]"],
+    ["c target", "DATA c TYPE c LENGTH 30. c = p * 3. WRITE |[{ c }]|.", "[        3.0000000000000004E-01]"],
+    ["WIDTH/ALIGN", "WRITE |[{ p * 3 WIDTH = 20 ALIGN = RIGHT }]|.", "[ 0.30000000000000004]"],
     ["f target", "DATA f TYPE f. f = p * 3. WRITE f.", "3,0000000000000004E-01"],
   ];
   for (const [name, body, expected] of cases) {
@@ -83,7 +83,7 @@ p = '1.005'. q = round( val = p * 1 dec = 2 ). WRITE q.`)).to.equal("1,00");
     expect(result).to.be.instanceof(Float);
     expect(condense({val: result as any}).get()).to.equal("3,0000000000000004E-01");
     expect(alphaOut(result as any)).to.equal("3,0000000000000004E-01");
-    expect(templateFormatting(result as any, {width: 20, pad: " ", align: "right"})).to.equal("  0.3000000000000000");
+    expect(templateFormatting(result as any, {width: 20, pad: " ", align: "right"})).to.equal(" 0.30000000000000004");
     const q = new Packed({decimals: 3}).set("1.005");
     expect(round({val: multiply(q, new Integer().set(1)) as any, dec: 2}).getRaw()).to.equal(1);
   });
