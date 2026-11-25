@@ -3682,7 +3682,7 @@ ENDCLASS.`;
     expect(cons).to.include("Set");
   });
 
-  it("test-71", async () => {
+  it("test-75", async () => {
 // a local class inheriting from its own global class: the class pool's modules must load
     const clas = `
     CLASS zcl_owner DEFINITION PUBLIC.
@@ -3738,7 +3738,7 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 3)).to.deep.equal(["sub owner 11", "sub owner 12"]);
   });
 
-  it("test-72", async () => {
+  it("test-76", async () => {
 // a local exception class inheriting from its own global exception class
     const cx = `
     CLASS zcx_owner DEFINITION PUBLIC INHERITING FROM cx_root.
@@ -3796,7 +3796,7 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 3)).to.deep.equal(["local", "caught"]);
   });
 
-  it("test-73", async () => {
+  it("test-77", async () => {
 // a local class inheriting from another global class, which uses the first class: still loads
     const base = `
     CLASS zcl_base DEFINITION PUBLIC.
@@ -3913,7 +3913,7 @@ ENDCLASS.`;
     expect(mod.indexOf(`await import("./zcl_b_store.clas.mjs")`)).to.be.lessThan(mod.indexOf("class zcl_a_buffer"));
   });
 
-  it("test-74", async () => {
+  it("test-94", async () => {
 // an interface constant whose VALUE is another interface's constant; the referencing interface is loaded first
     const zifb = `
     INTERFACE zif_b PUBLIC.
@@ -3948,7 +3948,7 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 2)).to.deep.equal(["c"]);
   });
 
-  it("test-75", async () => {
+  it("test-95", async () => {
 // a chain of three interface constants
     const zifa = `
     INTERFACE zif_a PUBLIC.
@@ -3988,7 +3988,7 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 2)).to.deep.equal(["42"]);
   });
 
-  it("test-76", async () => {
+  it("test-96", async () => {
 // a class constant and a structured interface constant from an interface constant
     const zifs = `
     INTERFACE zif_s PUBLIC.
@@ -4036,7 +4036,7 @@ ENDCLASS.`;
     expect(cons.split("\n").slice(1, 4)).to.deep.equal(["t", "t", "b"]);
   });
 
-  it("test-77", async () => {
+  it("test-97", async () => {
 // two interfaces referencing each other's constants, one including the other; zif_m1=>c3 leads back into zif_m1
     const zifm1 = `
     INTERFACE zif_m1 PUBLIC.
