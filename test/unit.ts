@@ -4213,7 +4213,7 @@ ENDCLASS.`;
   });
 
 
-  it("test-84", async () => {
+  it("test-94", async () => {
 // two class constructors naming each other's classes: no import cycle, both run once both classes exist
     const cca = `
     CLASS zcl_cc_a DEFINITION PUBLIC.
